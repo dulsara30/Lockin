@@ -5,7 +5,7 @@ const envSchema = z.object({
   AUTH_SECRET: z.string().min(16, 'AUTH_SECRET must be at least 16 characters'),
   GEMINI_API_KEY: z.string().min(1, 'GEMINI_API_KEY is required'),
   ENCRYPTION_KEY: z.string().min(16, 'ENCRYPTION_KEY must be at least 16 characters'),
-  GEMINI_MODEL: z.string().default('gemini-2.0-flash'),
+  GEMINI_MODEL: z.string().default('gemini-2.5-flash-lite-preview-06-17'),
   AI_DAILY_CAP_SHARED: z
     .string()
     .default('10')
@@ -31,7 +31,7 @@ function validateEnv() {
         AUTH_SECRET: 'placeholder-secret-at-least-16-chars',
         GEMINI_API_KEY: 'placeholder-key',
         ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef',
-        GEMINI_MODEL: 'gemini-2.0-flash',
+        GEMINI_MODEL: 'gemini-2.5-flash-lite-preview-06-17',
         AI_DAILY_CAP_SHARED: '10',
         ...process.env,
       });

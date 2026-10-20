@@ -6,6 +6,7 @@ import { generateKeyBetween } from 'fractional-indexing';
 
 export interface CreateStepDTO {
   missionId: string;
+  runwayId?: string;
   dayIndex: number;
   title: string;
   notes?: string;
@@ -27,12 +28,25 @@ export interface UpdateStepDTO {
   customFields?: Record<string, unknown>;
 }
 
-export async function getStepsByMission(userId: string, missionId: string) {
+export async function getStepsByMission(userId: string, missionId: string, runwayId?: string) {
   if (!userId) throw new Error('Security Error: userId is required');
   if (!missionId) throw new Error('missionId is required');
   await connectDB();
 
-  return await Step.find({ userId, missionId }).sort({ dayIndex: 1, order: 1 }).lean().exec();
+  const filter: Record<string, unknown> = { userId, missionId };
+  if (runwayId) {
+    filter.runwayId = runwayId;
+  }
+
+  return await Step.find(filter).sort({ dayIndex: 1, order: 1 }).lean().exec();
+}
+
+export async function getStepsByRunway(userId: string, runwayId: string) {
+  if (!userId) throw new Error('Security Error: userId is required');
+  if (!runwayId) throw new Error('runwayId is required');
+  await connectDB();
+
+  return await Step.find({ userId, runwayId }).sort({ dayIndex: 1, order: 1 }).lean().exec();
 }
 
 export async function getStepsForToday(userId: string) {
@@ -65,14 +79,16 @@ export async function createStep(userId: string, data: CreateStepDTO) {
   let orderKey = data.order;
   if (!orderKey) {
     // Determine fractional order key based on last item in this day
-    const lastStep = await Step.findOne({
+    const query: Record<string, unknown> = {
       userId,
       missionId: data.missionId,
       dayIndex: data.dayIndex,
-    })
-      .sort({ order: -1 })
-      .lean()
-      .exec();
+    };
+    if (data.runwayId) {
+      query.runwayId = data.runwayId;
+    }
+
+    const lastStep = await Step.findOne(query).sort({ order: -1 }).lean().exec();
 
     orderKey = generateKeyBetween(lastStep ? lastStep.order : null, null);
   }
@@ -80,6 +96,7 @@ export async function createStep(userId: string, data: CreateStepDTO) {
   const step = await Step.create({
     userId,
     missionId: data.missionId,
+    runwayId: data.runwayId || undefined,
     dayIndex: data.dayIndex,
     order: orderKey,
     title: data.title,

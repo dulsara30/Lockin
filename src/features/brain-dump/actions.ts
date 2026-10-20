@@ -13,7 +13,8 @@ import {
   ParsedPlan,
 } from '@/lib/templates/parser';
 import { brainDumpAiInputSchema, templateImportSchema, confirmPlanSchema } from './schemas';
-import { createMission } from '@/server/dal/missions';
+import { createMission, getMissionById, updateMission } from '@/server/dal/missions';
+import { createRunway } from '@/server/dal/runways';
 import { createStep, getStepsByMission } from '@/server/dal/steps';
 import { getTodayDashboardData } from '@/server/dal/today';
 import { generateKeyBetween } from 'fractional-indexing';
@@ -108,29 +109,59 @@ export async function confirmAndSavePlanAction(planData: unknown) {
     };
   }
 
-  const { title, description, dayCount, priority, tags, days, color } = parsed.data;
+  const {
+    title,
+    description,
+    dayCount,
+    priority,
+    tags,
+    days,
+    color,
+    missionId: targetMissionId,
+    runwayTitle,
+  } = parsed.data;
   const userId = session.user.id;
 
   try {
-    // 1. Create the Mission
     const startDate = new Date();
     const deadline = new Date(startDate);
     deadline.setDate(deadline.getDate() + dayCount);
 
-    const mission = await createMission(userId, {
-      title,
+    let activeMissionId: string;
+
+    // 1. Resolve or Create Mission (A runway CANNOT exist without a mission)
+    if (targetMissionId) {
+      const existing = await getMissionById(userId, targetMissionId);
+      if (!existing) {
+        return { success: false, error: 'Selected mission does not exist.' };
+      }
+      activeMissionId = existing._id.toString();
+    } else {
+      const newMission = await createMission(userId, {
+        title,
+        description: description || '',
+        color: color || '#7C5CFF',
+        priority,
+        tags: tags || [],
+        startDate,
+        deadline,
+        dayCount,
+      });
+      activeMissionId = newMission._id.toString();
+    }
+
+    // 2. Create the Runway strictly under this Mission
+    const runway = await createRunway(userId, {
+      missionId: activeMissionId,
+      title: runwayTitle || `${title} Runway`,
       description: description || '',
-      color: color || '#7C5CFF',
-      priority,
-      tags: tags || [],
+      dayCount,
       startDate,
       deadline,
-      dayCount,
     });
+    const runwayId = runway._id.toString();
 
-    const missionId = mission._id.toString();
-
-    // 2. Create Steps with fractional-indexing
+    // 3. Create Steps linked to BOTH missionId and runwayId
     for (const day of days) {
       let previousKey: string | null = null;
 
@@ -139,7 +170,8 @@ export async function confirmAndSavePlanAction(planData: unknown) {
         previousKey = orderKey;
 
         await createStep(userId, {
-          missionId,
+          missionId: activeMissionId,
+          runwayId,
           dayIndex: day.dayIndex,
           order: orderKey,
           title: step.title,
@@ -154,14 +186,15 @@ export async function confirmAndSavePlanAction(planData: unknown) {
     revalidatePath('/missions');
     revalidatePath(`/runway`);
     revalidatePath('/today');
+    revalidatePath('/insights');
 
-    return { success: true, missionId };
+    return { success: true, missionId: activeMissionId, runwayId };
   } catch (error: unknown) {
     console.error('Save plan error:', error);
     const err = error as { message?: string };
     return {
       success: false,
-      error: `Failed to save mission: ${err.message || 'Database error'}`,
+      error: `Failed to save runway: ${err.message || 'Database error'}`,
     };
   }
 }
@@ -182,7 +215,6 @@ export async function replanMissionAction(missionId: string, hoursPerDay = 4) {
       return { success: false, error: 'No incomplete steps to re-plan.' };
     }
 
-    // Determine day count needed
     const remainingDays = Math.max(
       2,
       Math.ceil(incompleteSteps.reduce((acc, s) => acc + s.estimateMin, 0) / (hoursPerDay * 60))

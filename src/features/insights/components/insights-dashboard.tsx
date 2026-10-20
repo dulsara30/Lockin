@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   AreaChart,
   Area,
@@ -23,6 +24,7 @@ import {
   Sparkles,
   BarChart2,
   Layers,
+  Filter,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -32,12 +34,27 @@ interface InsightsDashboardProps {
 }
 
 export function InsightsDashboard({ initialData }: InsightsDashboardProps) {
-  const [data] = useState<InsightsData>(initialData);
+  const router = useRouter();
+  const [data, setData] = useState<InsightsData>(initialData);
   const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setData(initialData);
+  }, [initialData]);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  const handleMissionChange = (missionId: string) => {
+    if (missionId === 'all') {
+      router.push('/insights');
+    } else {
+      router.push(`/insights?missionId=${missionId}`);
+    }
+  };
+
+  const selectedMission = data.missionsList?.find((m) => m._id === data.selectedMissionId);
 
   return (
     <div className="space-y-8 animate-in fade-in-50 duration-200">
@@ -51,9 +68,37 @@ export function InsightsDashboard({ initialData }: InsightsDashboardProps) {
           <h1 className="text-3xl font-extrabold tracking-tight text-[#F4F4FA]">
             Execution Insights
           </h1>
+          {selectedMission && (
+            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
+              <span>Filtered to:</span>
+              <span
+                className="h-2 w-2 rounded-full"
+                style={{ backgroundColor: selectedMission.color }}
+              />
+              <strong className="text-foreground">{selectedMission.title}</strong>
+            </p>
+          )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Mission Filter Dropdown */}
+          <div className="flex items-center gap-2 bg-[#14141F] border border-[#262637] rounded-xl px-3 py-1.5">
+            <Filter className="h-3.5 w-3.5 text-primary" />
+            <span className="text-xs text-[#9A9AB5] font-semibold">Scope:</span>
+            <select
+              value={data.selectedMissionId || 'all'}
+              onChange={(e) => handleMissionChange(e.target.value)}
+              className="bg-transparent text-xs text-[#F4F4FA] font-medium focus:outline-none cursor-pointer"
+            >
+              <option value="all">All Missions (Global Analytics)</option>
+              {data.missionsList?.map((m) => (
+                <option key={m._id} value={m._id}>
+                  {m.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <Link href="/today">
             <Button
               variant="outline"
@@ -114,7 +159,11 @@ export function InsightsDashboard({ initialData }: InsightsDashboardProps) {
               {data.completionRatePercent}%
             </span>
           </div>
-          <p className="text-[11px] text-[#9A9AB5] mt-2">Across {data.totalMissions} missions</p>
+          <p className="text-[11px] text-[#9A9AB5] mt-2">
+            {selectedMission
+              ? `For mission "${selectedMission.title}"`
+              : `Across ${data.totalMissions} missions`}
+          </p>
         </div>
 
         {/* Planned Workload */}
@@ -140,7 +189,7 @@ export function InsightsDashboard({ initialData }: InsightsDashboardProps) {
         <div className="rounded-2xl border border-[#262637] bg-[#14141F] p-5 shadow-lg relative overflow-hidden">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-[#9A9AB5] uppercase tracking-wider">
-              Active Pipelines
+              Active Missions
             </span>
             <div className="p-2 rounded-xl bg-cyan/15 text-cyan">
               <Layers className="h-4 w-4" />

@@ -9,13 +9,18 @@ export const metadata: Metadata = {
   description: 'Burn-down velocity, planned vs actual time, streak, and mission analytics.',
 };
 
-export default async function InsightsPage() {
+interface InsightsPageProps {
+  searchParams: Promise<{ missionId?: string }>;
+}
+
+export default async function InsightsPage({ searchParams }: InsightsPageProps) {
   const session = await auth();
   if (!session?.user?.id) {
     redirect('/login');
   }
 
-  const data = await getInsightsData(session.user.id);
+  const { missionId } = await searchParams;
+  const data = await getInsightsData(session.user.id, missionId);
 
   return (
     <div className="container py-8 px-4 sm:px-6 max-w-7xl mx-auto">

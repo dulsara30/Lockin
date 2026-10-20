@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+import { Suspense } from 'react';
 import { BrainDumpView } from '@/features/brain-dump/components/brain-dump-view';
 
 export const metadata: Metadata = {
@@ -10,7 +11,9 @@ export const metadata: Metadata = {
 export default function BrainDumpPage() {
   return (
     <div className="container py-8 px-4 sm:px-6 max-w-7xl mx-auto">
-      <BrainDumpView />
+      <Suspense fallback={<div className="h-40 rounded-2xl bg-surface/30 animate-pulse" />}>
+        <BrainDumpView />
+      </Suspense>
     </div>
   );
 }

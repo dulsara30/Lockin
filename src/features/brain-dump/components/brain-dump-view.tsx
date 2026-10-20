@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { ParsedPlan } from '@/lib/templates/parser';
 import { PlanPreview } from './plan-preview';
 import {
@@ -26,6 +27,8 @@ import {
 import { toast } from 'sonner';
 
 export function BrainDumpView() {
+  const searchParams = useSearchParams();
+  const targetMissionId = searchParams.get('missionId') || undefined;
   const [activeTab, setActiveTab] = useState<'ai' | 'template'>('ai');
   const [generatedPlan, setGeneratedPlan] = useState<ParsedPlan | null>(null);
 
@@ -226,7 +229,13 @@ export function BrainDumpView() {
   };
 
   if (generatedPlan) {
-    return <PlanPreview initialPlan={generatedPlan} onBack={() => setGeneratedPlan(null)} />;
+    return (
+      <PlanPreview
+        initialPlan={generatedPlan}
+        initialMissionId={targetMissionId}
+        onBack={() => setGeneratedPlan(null)}
+      />
+    );
   }
 
   return (

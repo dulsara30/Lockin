@@ -18,6 +18,11 @@ import {
   getStepsByMission,
   rolloverSteps,
 } from '@/server/dal/steps';
+import { getRunwaysByMission } from '@/server/dal/runways';
+import { getInsightsData } from '@/server/dal/insights';
+import { calculateMissionHealth } from '@/lib/planning';
+import { Step } from '@/server/models/Step';
+import { Runway } from '@/server/models/Runway';
 import { startTimeLog, stopTimeLog, getTimeLogsByStep } from '@/server/dal/timeLogs';
 import {
   createMissionSchema,
@@ -55,6 +60,7 @@ export async function actionCreateMission(raw: CreateMissionInput) {
     revalidatePath('/missions');
     revalidatePath('/runway');
     revalidatePath('/today');
+    revalidatePath('/insights');
     return { success: true, data: JSON.parse(JSON.stringify(mission)) };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Server error' };
@@ -73,6 +79,7 @@ export async function actionUpdateMission(missionId: string, raw: UpdateMissionI
     revalidatePath('/missions');
     revalidatePath('/runway');
     revalidatePath('/today');
+    revalidatePath('/insights');
     return { success: true, data: JSON.parse(JSON.stringify(updated)) };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Server error' };
@@ -86,6 +93,7 @@ export async function actionDeleteMission(missionId: string) {
     revalidatePath('/missions');
     revalidatePath('/runway');
     revalidatePath('/today');
+    revalidatePath('/insights');
     return { success: true };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Server error' };
@@ -99,6 +107,7 @@ export async function actionArchiveMission(missionId: string, archived: boolean)
     revalidatePath('/missions');
     revalidatePath('/runway');
     revalidatePath('/today');
+    revalidatePath('/insights');
     return { success: true };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Server error' };
@@ -108,8 +117,28 @@ export async function actionArchiveMission(missionId: string, archived: boolean)
 export async function actionGetMissions() {
   try {
     const userId = await getRequiredUserId();
-    const missions = await getMissions(userId);
-    return { success: true, data: JSON.parse(JSON.stringify(missions)) };
+    const [missions, runways, steps] = await Promise.all([
+      getMissions(userId),
+      Runway.find({ userId, status: { $ne: 'archived' } })
+        .lean()
+        .exec(),
+      Step.find({ userId }).lean().exec(),
+    ]);
+
+    const enriched = missions.map((m) => {
+      const mId = m._id.toString();
+      const mRunways = runways.filter((r) => r.missionId.toString() === mId);
+      const mSteps = steps.filter((s) => s.missionId.toString() === mId);
+      const mCompleted = mSteps.filter((s) => s.status === 'done');
+      return {
+        ...m,
+        runwayCount: mRunways.length,
+        stepCount: mSteps.length,
+        completedStepCount: mCompleted.length,
+      };
+    });
+
+    return { success: true, data: JSON.parse(JSON.stringify(enriched)) };
   } catch (error) {
     return {
       success: false,
@@ -122,18 +151,24 @@ export async function actionGetMissions() {
 export async function actionGetMissionDetails(missionId: string) {
   try {
     const userId = await getRequiredUserId();
-    const [mission, steps] = await Promise.all([
+    const [mission, runways, steps, insights] = await Promise.all([
       getMissionById(userId, missionId),
+      getRunwaysByMission(userId, missionId),
       getStepsByMission(userId, missionId),
+      getInsightsData(userId, missionId),
     ]);
+
     if (!mission) {
       return { success: false, error: 'Mission not found' };
     }
+
     return {
       success: true,
       data: {
         mission: JSON.parse(JSON.stringify(mission)),
+        runways: JSON.parse(JSON.stringify(runways)),
         steps: JSON.parse(JSON.stringify(steps)),
+        insights: JSON.parse(JSON.stringify(insights)),
       },
     };
   } catch (error) {
@@ -154,6 +189,8 @@ export async function actionCreateStep(raw: CreateStepInput) {
     const step = await createStep(userId, parsed.data);
     revalidatePath('/runway');
     revalidatePath('/today');
+    revalidatePath('/missions');
+    revalidatePath('/insights');
     return { success: true, data: JSON.parse(JSON.stringify(step)) };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Server error' };
@@ -171,6 +208,8 @@ export async function actionUpdateStep(stepId: string, raw: UpdateStepInput) {
     const updated = await updateStep(userId, stepId, parsed.data);
     revalidatePath('/runway');
     revalidatePath('/today');
+    revalidatePath('/missions');
+    revalidatePath('/insights');
     return { success: true, data: JSON.parse(JSON.stringify(updated)) };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Server error' };
@@ -209,6 +248,8 @@ export async function actionDeleteStep(stepId: string) {
     await deleteStep(userId, stepId);
     revalidatePath('/runway');
     revalidatePath('/today');
+    revalidatePath('/missions');
+    revalidatePath('/insights');
     return { success: true };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Server error' };
@@ -253,6 +294,7 @@ export async function actionStopTimeLog(logId: string, durationSec: number) {
     const log = await stopTimeLog(userId, logId, durationSec);
     revalidatePath('/runway');
     revalidatePath('/today');
+    revalidatePath('/insights');
     return { success: true, data: JSON.parse(JSON.stringify(log)) };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Server error' };

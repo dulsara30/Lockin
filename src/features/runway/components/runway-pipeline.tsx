@@ -1,6 +1,8 @@
 'use client';
 
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   DndContext,
   DragOverlay,
@@ -22,7 +24,16 @@ import { RolloverModal } from './rollover-modal';
 import { ReplanModal } from './replan-modal';
 import { calculateMissionHealth, MissionHealthResult } from '@/lib/planning';
 import { actionCreateStep, actionReorderStep, actionUpdateStep } from '@/features/missions/actions';
+import { actionDeleteRunway } from '@/features/runway/actions';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import {
   RotateCw,
   Plus,
@@ -33,6 +44,12 @@ import {
   Calendar,
   Download,
   LayoutTemplate,
+  Target,
+  ExternalLink,
+  ArrowLeft,
+  AlertTriangle,
+  Trash2,
+  FileText,
 } from 'lucide-react';
 import { saveMissionAsTemplateAction } from '@/features/templates/actions';
 import { exportMissionMarkdownAction } from '@/features/settings/actions';
@@ -50,25 +67,47 @@ export interface MissionData {
   status: string;
 }
 
+export interface RunwayData {
+  _id: string;
+  title: string;
+  dayCount: number;
+  startDate?: string;
+  deadline?: string;
+  status?: string;
+}
+
 interface RunwayPipelineProps {
   mission: MissionData;
+  runway?: RunwayData;
+  runwaysList?: RunwayData[];
   initialSteps: StepData[];
   missionsList?: MissionData[];
-  onMissionChange?: (missionId: string) => void;
 }
 
 export function RunwayPipeline({
   mission,
+  runway,
+  runwaysList = [],
   initialSteps,
   missionsList = [],
-  onMissionChange,
 }: RunwayPipelineProps) {
+  const router = useRouter();
   const [steps, setSteps] = React.useState<StepData[]>(initialSteps);
   const [activeStep, setActiveStep] = React.useState<StepData | null>(null);
   const [selectedStep, setSelectedStep] = React.useState<StepData | null>(null);
+
+  // Modals state
   const [isRolloverOpen, setIsRolloverOpen] = React.useState(false);
   const [isReplanOpen, setIsReplanOpen] = React.useState(false);
+  const [isReplanConfirmOpen, setIsReplanConfirmOpen] = React.useState(false);
+  const [isExportConfirmOpen, setIsExportConfirmOpen] = React.useState(false);
+  const [isDeleteRunwayConfirmOpen, setIsDeleteRunwayConfirmOpen] = React.useState(false);
+  const [isExporting, setIsExporting] = React.useState(false);
+  const [isDeletingRunway, setIsDeletingRunway] = React.useState(false);
+
   const [currentDayIndex, setCurrentDayIndex] = React.useState(0);
+
+  const effectiveDayCount = runway?.dayCount || mission.dayCount || 5;
 
   // Synchronize initial steps
   React.useEffect(() => {
@@ -77,13 +116,14 @@ export function RunwayPipeline({
 
   // Compute current day index based on start date
   React.useEffect(() => {
-    if (mission.startDate) {
-      const start = new Date(mission.startDate).getTime();
+    const startDateStr = runway?.startDate || mission.startDate;
+    if (startDateStr) {
+      const start = new Date(startDateStr).getTime();
       const now = new Date().getTime();
       const diffDays = Math.floor((now - start) / (1000 * 60 * 60 * 24));
-      setCurrentDayIndex(Math.max(0, Math.min(mission.dayCount - 1, diffDays)));
+      setCurrentDayIndex(Math.max(0, Math.min(effectiveDayCount - 1, diffDays)));
     }
-  }, [mission.startDate, mission.dayCount]);
+  }, [runway?.startDate, mission.startDate, effectiveDayCount]);
 
   // Sensors for keyboard & pointer drag
   const sensors = useSensors(
@@ -98,84 +138,87 @@ export function RunwayPipeline({
   );
 
   // Calculate pure health badge
-  const health = React.useMemo(() => {
-    return calculateMissionHealth({
-      steps: steps.map((s) => ({
-        estimateMin: s.estimateMin,
-        status: s.status,
-        dayIndex: s.dayIndex,
-      })),
-      dayCount: mission.dayCount,
-      currentDayIndex,
-      dailyCapacityMin: 240,
-    });
-  }, [steps, mission.dayCount, currentDayIndex]);
+  const health = calculateMissionHealth({
+    steps,
+    dayCount: effectiveDayCount,
+    currentDayIndex,
+    dailyCapacityMin: 240,
+  });
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
-    const found = steps.find((s) => s._id === active.id);
-    if (found) {
-      setActiveStep(found);
+    const step = steps.find((s) => s._id === active.id);
+    if (step) setActiveStep(step);
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+
+    const activeId = String(active.id);
+    const overId = String(over.id);
+
+    const activeItem = steps.find((s) => s._id === activeId);
+    if (!activeItem) return;
+
+    let targetDayIndex: number | null = null;
+
+    if (overId.startsWith('day-column-')) {
+      targetDayIndex = parseInt(overId.replace('day-column-', ''), 10);
+    } else {
+      const overItem = steps.find((s) => s._id === overId);
+      if (overItem) targetDayIndex = overItem.dayIndex;
+    }
+
+    if (targetDayIndex !== null && activeItem.dayIndex !== targetDayIndex) {
+      setSteps((prev) =>
+        prev.map((s) => (s._id === activeId ? { ...s, dayIndex: targetDayIndex as number } : s))
+      );
     }
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveStep(null);
-
     if (!over) return;
 
-    const activeId = active.id as string;
-    const draggedStep = steps.find((s) => s._id === activeId);
-    if (!draggedStep) return;
+    const activeId = String(active.id);
+    const overId = String(over.id);
 
-    // Target could be another step or a day column container
-    let targetDayIndex = draggedStep.dayIndex;
-    const overId = over.id as string;
+    const activeItem = steps.find((s) => s._id === activeId);
+    if (!activeItem) return;
 
-    if (overId.startsWith('day-')) {
-      targetDayIndex = parseInt(overId.replace('day-', ''), 10);
+    let targetDayIndex = activeItem.dayIndex;
+
+    if (overId.startsWith('day-column-')) {
+      targetDayIndex = parseInt(overId.replace('day-column-', ''), 10);
     } else {
-      const overStep = steps.find((s) => s._id === overId);
-      if (overStep) {
-        targetDayIndex = overStep.dayIndex;
-      }
+      const overItem = steps.find((s) => s._id === overId);
+      if (overItem) targetDayIndex = overItem.dayIndex;
     }
 
-    // Target day steps sorted by order
     const daySteps = steps
-      .filter((s) => s.dayIndex === targetDayIndex && s._id !== activeId)
+      .filter((s) => s.dayIndex === targetDayIndex)
       .sort((a, b) => a.order.localeCompare(b.order));
 
-    let prevOrder: string | null = null;
-    let nextOrder: string | null = null;
+    let newOrder: string;
+    const overIndex = daySteps.findIndex((s) => s._id === overId);
 
-    if (overId.startsWith('day-')) {
-      // Dropped on empty area of column: place at the end
-      prevOrder = daySteps.length > 0 ? daySteps[daySteps.length - 1].order : null;
-      nextOrder = null;
+    if (overIndex === -1) {
+      const last = daySteps[daySteps.length - 1];
+      newOrder = generateKeyBetween(last ? last.order : null, null);
     } else {
-      const overIndex = daySteps.findIndex((s) => s._id === overId);
-      if (overIndex >= 0) {
-        prevOrder = overIndex > 0 ? daySteps[overIndex - 1].order : null;
-        nextOrder = daySteps[overIndex].order;
-      } else {
-        prevOrder = daySteps.length > 0 ? daySteps[daySteps.length - 1].order : null;
-        nextOrder = null;
-      }
+      const prevOrder = overIndex > 0 ? daySteps[overIndex - 1].order : null;
+      const nextOrder = daySteps[overIndex].order;
+      newOrder = generateKeyBetween(prevOrder, nextOrder);
     }
 
-    const newOrder = generateKeyBetween(prevOrder, nextOrder);
-
-    // Optimistic state update
-    const updatedSteps = steps.map((s) => {
-      if (s._id === activeId) {
-        return { ...s, dayIndex: targetDayIndex, order: newOrder };
-      }
-      return s;
-    });
-
-    setSteps(updatedSteps);
+    // Optimistic update
+    setSteps((prev) =>
+      prev.map((s) =>
+        s._id === activeId ? { ...s, dayIndex: targetDayIndex, order: newOrder } : s
+      )
+    );
 
     // Single write to database
     const res = await actionReorderStep({
@@ -215,6 +258,7 @@ export function RunwayPipeline({
 
     const res = await actionCreateStep({
       missionId: mission._id,
+      runwayId: runway?._id,
       dayIndex,
       title,
       order: newOrder,
@@ -237,7 +281,7 @@ export function RunwayPipeline({
     try {
       const res = await saveMissionAsTemplateAction(mission._id, mission.title);
       if (res.success) {
-        toast.success('Mission saved as template!');
+        toast.success('Mission runway saved as template!');
       } else {
         toast.error(res.error || 'Failed to save template');
       }
@@ -246,7 +290,8 @@ export function RunwayPipeline({
     }
   };
 
-  const handleExportMarkdown = async () => {
+  const handleExecuteExportMarkdown = async () => {
+    setIsExporting(true);
     try {
       const res = await exportMissionMarkdownAction(mission._id);
       if (res.success && res.markdown && res.filename) {
@@ -257,12 +302,34 @@ export function RunwayPipeline({
         a.download = res.filename;
         a.click();
         URL.revokeObjectURL(url);
-        toast.success('Mission exported as Markdown.');
+        toast.success('Mission runway exported as Markdown.');
+        setIsExportConfirmOpen(false);
       } else {
         toast.error(res.error || 'Export failed');
       }
     } catch {
       toast.error('Error exporting markdown');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExecuteDeleteRunway = async () => {
+    if (!runway?._id) return;
+    setIsDeletingRunway(true);
+    try {
+      const res = await actionDeleteRunway(runway._id);
+      if (res.success) {
+        toast.success('Runway and scheduled tasks deleted from mission.');
+        setIsDeleteRunwayConfirmOpen(false);
+        router.push(`/runway`);
+      } else {
+        toast.error(res.error || 'Failed to delete runway');
+      }
+    } catch {
+      toast.error('Error deleting runway');
+    } finally {
+      setIsDeletingRunway(false);
     }
   };
 
@@ -312,6 +379,67 @@ export function RunwayPipeline({
 
   return (
     <div className="space-y-6">
+      {/* Navigation & Mission Switcher Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-surface/70 border border-border shadow-sm">
+        <div className="flex items-center gap-3">
+          <Link href="/runway">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs gap-1.5 text-muted-foreground hover:text-foreground hover:bg-surface"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>All Missions Hub</span>
+            </Button>
+          </Link>
+
+          <div className="h-4 w-px bg-border/80 hidden sm:block" />
+
+          {/* Mission Dropdown Switcher */}
+          <div className="flex items-center gap-2">
+            <Target className="h-4 w-4 text-primary shrink-0" />
+            <span className="text-xs font-semibold text-muted-foreground hidden sm:inline">
+              Mission:
+            </span>
+            <select
+              value={mission._id}
+              onChange={(e) => router.push(`/runway?missionId=${e.target.value}`)}
+              className="bg-background border border-border rounded-xl px-2.5 py-1 text-xs text-foreground font-semibold focus:outline-none focus:border-primary cursor-pointer"
+            >
+              {missionsList.map((m) => (
+                <option key={m._id} value={m._id}>
+                  {m.title}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Link href={`/missions`}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs gap-1.5 border-border bg-background hover:bg-surface"
+            >
+              <ExternalLink className="h-3 w-3 text-muted-foreground" />
+              <span>Manage Missions</span>
+            </Button>
+          </Link>
+
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={() => setIsDeleteRunwayConfirmOpen(true)}
+            className="text-xs gap-1.5"
+            title="Delete this Runway"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Delete Runway</span>
+          </Button>
+        </div>
+      </div>
+
       {/* Top Runway Header Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-border/60">
         <div className="space-y-1">
@@ -321,12 +449,16 @@ export function RunwayPipeline({
               style={{ backgroundColor: mission.color || '#7C5CFF' }}
             />
             <h1 className="text-2xl font-bold tracking-tight text-foreground truncate max-w-lg">
-              {mission.title}
+              {runway?.title || `${mission.title} Runway`}
             </h1>
             {getHealthBadge(health.health)}
           </div>
           <p className="text-xs text-muted-foreground flex items-center gap-2">
-            <span>{mission.dayCount} Days Runway</span>
+            <span>
+              Mission: <strong>{mission.title}</strong>
+            </span>
+            <span>•</span>
+            <span>{effectiveDayCount} Days Runway</span>
             <span>•</span>
             <span>
               {health.completionRatePercent}% complete ({health.completedEstimateMin}m /{' '}
@@ -337,11 +469,11 @@ export function RunwayPipeline({
 
         {/* Action Controls */}
         <div className="flex items-center gap-2.5">
-          {/* Re-plan Trigger */}
+          {/* Re-plan Trigger (Opens Confirmation Modal first) */}
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => setIsReplanOpen(true)}
+            onClick={() => setIsReplanConfirmOpen(true)}
             className="text-xs gap-1.5 bg-surface border-border hover:bg-surface-hover text-warning"
           >
             <Sparkles className="h-3.5 w-3.5 text-warning" />
@@ -360,11 +492,11 @@ export function RunwayPipeline({
             <span className="hidden sm:inline">Template</span>
           </Button>
 
-          {/* Export Markdown */}
+          {/* Export Markdown (Opens Confirmation Modal first) */}
           <Button
             variant="secondary"
             size="sm"
-            onClick={handleExportMarkdown}
+            onClick={() => setIsExportConfirmOpen(true)}
             className="text-xs gap-1.5 bg-surface border-border hover:bg-surface-hover"
             title="Download as Markdown file"
           >
@@ -390,6 +522,7 @@ export function RunwayPipeline({
         sensors={sensors}
         collisionDetection={closestCorners}
         onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
         <div className="relative pb-6 overflow-x-auto">
@@ -398,7 +531,7 @@ export function RunwayPipeline({
 
           {/* Columns Track */}
           <div className="flex gap-5 relative z-10 min-w-max pb-4">
-            {Array.from({ length: mission.dayCount }).map((_, index) => {
+            {Array.from({ length: effectiveDayCount }).map((_, index) => {
               const daySteps = steps
                 .filter((s) => s.dayIndex === index)
                 .sort((a, b) => a.order.localeCompare(b.order));
@@ -429,10 +562,10 @@ export function RunwayPipeline({
         </DragOverlay>
       </DndContext>
 
-      {/* Step Edit & Context Drawer */}
+      {/* Step Edit & Timer Drawer */}
       <StepDrawer
-        step={selectedStep}
         isOpen={!!selectedStep}
+        step={selectedStep}
         onClose={() => setSelectedStep(null)}
         onStepUpdated={(updated) => {
           setSteps((prev) => prev.map((s) => (s._id === updated._id ? updated : s)));
@@ -444,19 +577,167 @@ export function RunwayPipeline({
         }}
       />
 
-      {/* Roll Over Modal Preview */}
+      {/* Confirmation Modal 1: Re-plan Confirmation */}
+      <Dialog open={isReplanConfirmOpen} onOpenChange={setIsReplanConfirmOpen}>
+        <DialogContent className="max-w-md bg-surface border-border p-6 shadow-2xl">
+          <DialogHeader className="space-y-1">
+            <div className="flex items-center gap-2 text-warning font-semibold text-sm">
+              <Sparkles className="h-4 w-4" />
+              <span>AI Re-plan Confirmation</span>
+            </div>
+            <DialogTitle className="text-base font-bold text-foreground">
+              Re-distribute Unfinished Tasks?
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground leading-relaxed pt-1">
+              Re-planning will evaluate all incomplete tasks in &ldquo;{mission.title}&rdquo; and
+              re-balance them across future days to respect your daily work capacity.
+              <br />
+              <br />• Completed tasks will <strong>NOT</strong> be touched or removed.
+              <br />
+              • Unfinished tasks will be redistributed into optimal 15–60 min chunks.
+              <br />• You will receive a preview of the new schedule before it is saved.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="pt-3 border-t border-border/60 gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsReplanConfirmOpen(false)}
+              className="text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                setIsReplanConfirmOpen(false);
+                setIsReplanOpen(true);
+              }}
+              className="text-xs bg-warning hover:bg-warning/90 text-black font-semibold gap-1.5"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Proceed to Re-plan</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation Modal 2: Export Markdown Confirmation */}
+      <Dialog open={isExportConfirmOpen} onOpenChange={setIsExportConfirmOpen}>
+        <DialogContent className="max-w-md bg-surface border-border p-6 shadow-2xl">
+          <DialogHeader className="space-y-1">
+            <div className="flex items-center gap-2 text-primary font-semibold text-sm">
+              <FileText className="h-4 w-4" />
+              <span>Export Runway Pipeline</span>
+            </div>
+            <DialogTitle className="text-base font-bold text-foreground">
+              Download Markdown Document?
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground leading-relaxed pt-1">
+              This action will compile the complete runway pipeline for &ldquo;{mission.title}
+              &rdquo; into a clean GitHub Flavored Markdown (.md) document and download it to your
+              computer.
+              <br />
+              <br />
+              • Includes day-by-day sequenced step checklists.
+              <br />
+              • Includes time estimates, notes, and priority badges.
+              <br />• Zero cost, completely offline, and compatible with Notion or Obsidian.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="pt-3 border-t border-border/60 gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsExportConfirmOpen(false)}
+              className="text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={isExporting}
+              onClick={handleExecuteExportMarkdown}
+              className="text-xs bg-primary hover:bg-primary-hover text-white gap-1.5"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>{isExporting ? 'Exporting...' : 'Download Markdown'}</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation Modal 3: Delete Runway Confirmation */}
+      <Dialog open={isDeleteRunwayConfirmOpen} onOpenChange={setIsDeleteRunwayConfirmOpen}>
+        <DialogContent className="max-w-md bg-surface border-border p-6 shadow-2xl">
+          <DialogHeader className="space-y-1">
+            <div className="flex items-center gap-2 text-danger font-semibold text-sm">
+              <AlertTriangle className="h-4 w-4" />
+              <span>Delete Runway Confirmation</span>
+            </div>
+            <DialogTitle className="text-base font-bold text-foreground">
+              Delete Runway from Mission?
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground leading-relaxed pt-1">
+              Are you sure you want to delete this execution runway? All scheduled tasks and daily
+              steps under this runway will be permanently deleted.
+              <br />
+              <br />
+              The parent mission <strong>&ldquo;{mission.title}&rdquo;</strong> will remain active,
+              allowing you to create a new runway whenever you choose.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="pt-3 border-t border-border/60 gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsDeleteRunwayConfirmOpen(false)}
+              className="text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              size="sm"
+              disabled={isDeletingRunway}
+              onClick={handleExecuteDeleteRunway}
+              className="text-xs gap-1.5"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>{isDeletingRunway ? 'Deleting...' : 'Delete Runway'}</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Roll Over Modal */}
       <RolloverModal
         isOpen={isRolloverOpen}
         onClose={() => setIsRolloverOpen(false)}
-        missionId={mission._id}
         steps={steps}
-        dayCount={mission.dayCount}
         currentDayIndex={currentDayIndex}
-        dailyCapacityMin={240}
+        missionId={mission._id}
+        dayCount={effectiveDayCount}
         onRolloverApplied={() => {
-          // Re-fetch steps or reload
           window.location.reload();
         }}
+      />
+
+      {/* Re-plan AI Execution Modal */}
+      <ReplanModal
+        isOpen={isReplanOpen}
+        onClose={() => setIsReplanOpen(false)}
+        missionId={mission._id}
+        missionTitle={mission.title}
       />
     </div>
   );

@@ -8,6 +8,7 @@ import {
   removeCustomGeminiKeyAction,
   exportAllUserDataAction,
 } from '@/features/settings/actions';
+import { applyTheme } from '@/lib/theme';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -47,6 +48,7 @@ export function SettingsView({ initialSettings, userEmail }: SettingsViewProps) 
   // Appearance & General
   const handleUpdateTheme = async (theme: 'dark' | 'light' | 'system') => {
     setSettings((prev) => ({ ...prev, theme }));
+    applyTheme(theme);
     const res = await updateSettingsAction({ theme });
     if (res.success && res.settings) {
       setSettings(res.settings);
@@ -294,7 +296,7 @@ export function SettingsView({ initialSettings, userEmail }: SettingsViewProps) 
                 onChange={(e) => setApiKeyInput(e.target.value)}
                 placeholder={
                   settings.hasCustomGeminiKey
-                    ? '••••••••••••••••••••••••••••••••'
+                    ? 'Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢'
                     : 'Paste your Google AI Studio API key...'
                 }
                 className="bg-[#14141F] border-[#262637] text-xs text-[#F4F4FA] pr-10 rounded-xl"
