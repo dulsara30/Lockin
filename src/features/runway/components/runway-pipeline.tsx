@@ -101,6 +101,20 @@ interface RunwayPipelineProps {
   dailyCapacityMin?: number;
 }
 
+function safeOrderBetween(
+  prev: string | null | undefined,
+  next: string | null | undefined
+): string {
+  try {
+    if (prev && next && prev.localeCompare(next) >= 0) {
+      return generateKeyBetween(next || null, null);
+    }
+    return generateKeyBetween(prev || null, next || null);
+  } catch {
+    return `${prev || 'a0'}m`;
+  }
+}
+
 export function RunwayPipeline({
   mission,
   runway,
@@ -176,31 +190,9 @@ export function RunwayPipeline({
     if (step) setActiveStep(step);
   };
 
-  const handleDragOver = (event: DragOverEvent) => {
-    const { active, over } = event;
-    if (!over) return;
-
-    const activeId = String(active.id);
-    const overId = String(over.id);
-
-    const activeItem = steps.find((s) => s._id === activeId);
-    if (!activeItem) return;
-
-    let targetDayIndex: number | null = null;
-
-    if (overId.startsWith('day-')) {
-      const parsed = parseInt(overId.replace('day-column-', '').replace('day-', ''), 10);
-      if (!isNaN(parsed)) targetDayIndex = parsed;
-    } else {
-      const overItem = steps.find((s) => s._id === overId);
-      if (overItem) targetDayIndex = overItem.dayIndex;
-    }
-
-    if (targetDayIndex !== null && activeItem.dayIndex !== targetDayIndex) {
-      setSteps((prev) =>
-        prev.map((s) => (s._id === activeId ? { ...s, dayIndex: targetDayIndex as number } : s))
-      );
-    }
+  const handleDragOver = (_event: DragOverEvent) => {
+    // Intentionally no state mutation during drag-over to prevent 60fps re-render loops and max update depth exceeded.
+    // DragOverlay smoothly handles visual preview.
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
@@ -226,20 +218,24 @@ export function RunwayPipeline({
 
     const previousSteps = [...steps];
 
-    const daySteps = steps
-      .filter((s) => s.dayIndex === targetDayIndex)
-      .sort((a, b) => a.order.localeCompare(b.order));
+    // Exclude the item being moved to get true siblings
+    const otherSteps = steps
+      .filter((s) => s.dayIndex === targetDayIndex && s._id !== activeId)
+      .sort((a, b) => (a.order || '').localeCompare(b.order || ''));
 
     let newOrder: string;
-    const overIndex = daySteps.findIndex((s) => s._id === overId);
-
-    if (overIndex === -1) {
-      const last = daySteps[daySteps.length - 1];
-      newOrder = generateKeyBetween(last ? last.order : null, null);
+    if (otherSteps.length === 0) {
+      newOrder = safeOrderBetween(null, null);
     } else {
-      const prevOrder = overIndex > 0 ? daySteps[overIndex - 1].order : null;
-      const nextOrder = daySteps[overIndex].order;
-      newOrder = generateKeyBetween(prevOrder, nextOrder);
+      const overIndex = otherSteps.findIndex((s) => s._id === overId);
+      if (overIndex === -1) {
+        const last = otherSteps[otherSteps.length - 1];
+        newOrder = safeOrderBetween(last ? last.order : null, null);
+      } else {
+        const prevOrder = overIndex > 0 ? otherSteps[overIndex - 1].order : null;
+        const nextOrder = otherSteps[overIndex].order;
+        newOrder = safeOrderBetween(prevOrder, nextOrder);
+      }
     }
 
     // Optimistic update

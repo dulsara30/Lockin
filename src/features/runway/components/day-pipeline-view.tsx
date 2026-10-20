@@ -21,10 +21,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   DndContext,
+  DragOverlay,
   useDroppable,
   useDraggable,
   closestCorners,
   DragEndEvent,
+  DragStartEvent,
   PointerSensor,
   useSensor,
   useSensors,
@@ -106,27 +108,28 @@ function DraggableStepCard({
   step: StepData;
   onSelect: (s: StepData) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: step._id,
   });
 
-  const style = transform
-    ? {
-        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-      }
-    : undefined;
+  if (isDragging) {
+    return (
+      <div
+        ref={setNodeRef}
+        className="p-3.5 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 min-h-[72px] opacity-40 select-none"
+      />
+    );
+  }
 
   return (
     <div
       ref={setNodeRef}
-      style={style}
       {...listeners}
       {...attributes}
       onClick={() => onSelect(step)}
       className={cn(
         'p-3.5 rounded-xl border border-border bg-surface hover:border-primary/50 transition-all cursor-grab active:cursor-grabbing text-xs space-y-2 shadow-sm select-none',
-        step.status === 'done' && 'opacity-70 bg-surface/40',
-        isDragging && 'opacity-40 ring-2 ring-primary shadow-xl'
+        step.status === 'done' && 'opacity-70 bg-surface/40'
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -285,6 +288,7 @@ export function DayPipelineView({
 }: DayPipelineViewProps) {
   const router = useRouter();
   const [steps, setSteps] = React.useState<StepData[]>(initialSteps);
+  const [activeStep, setActiveStep] = React.useState<StepData | null>(null);
   const [selectedStep, setSelectedStep] = React.useState<StepData | null>(null);
   const [isConfirmStartOpen, setIsConfirmStartOpen] = React.useState(false);
   const [isReplanOpen, setIsReplanOpen] = React.useState(false);
@@ -586,7 +590,18 @@ export function DayPipelineView({
       )}
 
       {/* 4 Kanban Status Columns DnD Board */}
-      <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={(e) => {
+          const st = steps.find((s) => s._id === e.active.id);
+          if (st) setActiveStep(st);
+        }}
+        onDragEnd={(e) => {
+          setActiveStep(null);
+          handleDragEnd(e);
+        }}
+      >
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {LANES.map((lane) => (
             <StatusLane
@@ -604,6 +619,26 @@ export function DayPipelineView({
             />
           ))}
         </div>
+
+        <DragOverlay>
+          {activeStep ? (
+            <div className="w-72 shadow-2xl scale-105 pointer-events-none opacity-95">
+              <div className="p-3.5 rounded-xl border-2 border-primary bg-surface text-xs space-y-2 shadow-2xl">
+                <div className="flex items-start justify-between gap-2">
+                  <h4 className="font-semibold text-foreground leading-snug">{activeStep.title}</h4>
+                  <span className="text-[10px] font-mono text-muted-foreground shrink-0 bg-muted px-1.5 py-0.5 rounded border border-border/50">
+                    {activeStep.estimateMin}m
+                  </span>
+                </div>
+                {activeStep.notes && (
+                  <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+                    {activeStep.notes}
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : null}
+        </DragOverlay>
       </DndContext>
 
       {/* Step Detail Drawer */}
