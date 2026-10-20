@@ -1,0 +1,7 @@
+# Prohibit unauthorized signatures
+if grep -Eqi "Co-authored-by|Generated with|AI Assistant|Claude|ChatGPT|Antigravity|Copilot" "$1"; then
+  echo "ERROR: Commit rejected! Commits must be authored by the repo owner only. Signatures like 'Co-authored-by' or 'Generated with' are strictly forbidden." >&2
+  exit 1
+fi
+
+npx --no -- commitlint --edit "$1"
