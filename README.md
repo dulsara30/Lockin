@@ -1,9 +1,9 @@
 <img src="public/logo.svg" alt="Lockin" height="48" />
 
-# Lockin — Mission-Driven Work Planning
+# Lockin - Mission-Driven Work Planning
 
 > **Turn big tasks into a pipeline of days.**  
-> Lockin is a premium, dark-first work-planning app that breaks complex initiatives into sequenced daily lanes — with workload capacity forecasting, drag-and-drop pipelines, a focus timer, and AI-powered planning.
+> Lockin is a premium, dark-first work-planning app that breaks complex initiatives into sequenced daily lanes - with workload capacity forecasting, drag-and-drop pipelines, a focus timer, and AI-powered planning.
 
 [![CI](https://github.com/dulsara30/Lockin/actions/workflows/ci.yml/badge.svg)](https://github.com/dulsara30/Lockin/actions/workflows/ci.yml)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org)
@@ -15,31 +15,31 @@
 
 ## ✨ Feature Overview
 
-### 🚀 Runway View — Hero Pipeline
+### 🚀 Runway View - Hero Pipeline
 
-- Visual day columns connected by a pipeline line — see your entire sprint at a glance
+- Visual day columns connected by a pipeline line - see your entire sprint at a glance
 - **Finished days** glow lime, **today** is outlined violet, **overloaded days** turn amber
 - Per-day capacity meters (planned hours vs daily limit)
-- Drag steps between days and reorder within a day — single fractional-index write to DB
+- Drag steps between days and reorder within a day - single fractional-index write to DB
 - Inline step creation per day lane
 
 ### 🎯 Mission Control
 
 - Create missions with title, description, color, priority, tags, start date, deadline, and day count
 - Full CRUD with cascade deletion and archive/restore
-- Mission health badge: **On track / At risk / Behind / Completed** — computed by a pure, well-tested function from remaining estimate vs remaining capacity
+- Mission health badge: **On track / At risk / Behind / Completed** - computed by a pure, well-tested function from remaining estimate vs remaining capacity
 
 ### ✅ Step Management
 
 - Rich step drawer: title, markdown notes (rendered safely via react-markdown), estimate, status picker, subtask checklist, time log history
 - Statuses: `todo · doing · done · blocked · skipped`
 - Quick-toggle done from Runway and Today views
-- All queries scoped by `userId` through a mandatory data-access layer — never by ID alone
+- All queries scoped by `userId` through a mandatory data-access layer - never by ID alone
 
 ### ⚡ Lock-In Mode
 
 - Full-screen focus on a single step
-- Big mono timer (start / pause / stop) — every session automatically writes a `timeLog`
+- Big mono timer (start / pause / stop) - every session automatically writes a `timeLog`
 - Tracks actual vs estimated time; `actualMin` updated on step after each session
 - Keyboard-accessible; respects `prefers-reduced-motion`
 
@@ -54,13 +54,13 @@
 
 - One-click preview of moving unfinished past steps to the next day
 - Shows **before / after health badge** and capacity impact before applying
-- Preview is computed by a pure function — nothing written until confirmed
+- Preview is computed by a pure function - nothing written until confirmed
 
 ### 🤖 Brain Dump to Plan (Phase 3)
 
 - **AI path:** big textbox → Gemini generates a full mission with day-wise steps, estimates, priorities, and subtasks
 - **Template path:** download Markdown / JSON template, fill it manually or with any LLM, upload/paste → parsed without AI cost
-- Both land on a shared **Preview screen**: edit, drag, delete — nothing saved until Confirm
+- Both land on a shared **Preview screen**: edit, drag, delete - nothing saved until Confirm
 - Re-plan: redistributes remaining steps over remaining days when behind
 
 ### 📊 Insights (Phase 4)
@@ -80,14 +80,14 @@
 ### ⌨️ Command Palette
 
 - `Ctrl/Cmd+K` opens the palette from anywhere
-- Navigate, create missions, start Brain Dump, enter Lock-In — all from the keyboard
+- Navigate, create missions, start Brain Dump, enter Lock-In - all from the keyboard
 
 ### 🔒 Security
 
 - Every DB document has `userId`; every query goes through a DAL that requires it
 - All server inputs validated with Zod; no secrets in client code or logs
 - Passwords hashed with bcryptjs (cost 12); email normalized on write
-- Rate limiting via MongoDB TTL collection — serverless-safe, no in-memory state
+- Rate limiting via MongoDB TTL collection - serverless-safe, no in-memory state
 - AES-256-GCM encrypted BYOK Gemini API key
 - Security headers (CSP, X-Frame-Options, HSTS, Permissions-Policy) in `next.config.ts`
 
@@ -122,7 +122,7 @@ src/
 │
 ├── server/
 │   ├── models/            # Mongoose models (User, Mission, Step, TimeLog, Activity, RateLimit)
-│   └── dal/               # Data-access layer — all queries require userId
+│   └── dal/               # Data-access layer - all queries require userId
 │       ├── missions.ts
 │       ├── steps.ts
 │       ├── timeLogs.ts
@@ -132,7 +132,7 @@ src/
 │   ├── db.ts              # Cached Mongoose connection (dbName: Lockin)
 │   ├── auth.ts            # Auth.js v5 NextAuth config with Credentials provider
 │   ├── auth.config.ts     # Edge-compatible auth config (for middleware)
-│   ├── env.ts             # Zod environment validation — fails fast at startup
+│   ├── env.ts             # Zod environment validation - fails fast at startup
 │   ├── ratelimit.ts       # MongoDB TTL-backed rate limiter
 │   ├── planning.ts        # Pure mission health & capacity engine (fully unit tested)
 │   └── utils.ts           # cn() and helpers
@@ -199,7 +199,7 @@ Edit `.env.local`:
 
 | Variable              | Required | Description                                                           |
 | --------------------- | -------- | --------------------------------------------------------------------- |
-| `MONGODB_URI`         | ✅       | MongoDB Atlas connection string — **must point to `Lockin` database** |
+| `MONGODB_URI`         | ✅       | MongoDB Atlas connection string - **must point to `Lockin` database** |
 | `AUTH_SECRET`         | ✅       | Random 32+ byte secret for JWT signing                                |
 | `GEMINI_API_KEY`      | ✅       | Shared Gemini key (AI features, optional locally)                     |
 | `ENCRYPTION_KEY`      | ✅       | 32-byte hex key for AES-256-GCM BYOK encryption                       |
@@ -244,7 +244,7 @@ Playwright e2e tests run in Phase 5 (full signup → brain dump → runway → c
 2. Connect GitHub repo to Vercel
 3. Set **all env variables** from `.env.example` in Vercel dashboard
 4. Set function region to `sin1` (Singapore) or `bom1` (Mumbai) to co-locate with Atlas
-5. Deploy — Vercel auto-detects Next.js and sets the build command
+5. Deploy - Vercel auto-detects Next.js and sets the build command
 
 **Vercel settings:**
 
@@ -276,7 +276,7 @@ Playwright e2e tests run in Phase 5 (full signup → brain dump → runway → c
 - Passwords: bcryptjs cost 12, min 8 chars, email normalized to lowercase
 - BYOK Gemini API keys stored AES-256-GCM encrypted with `ENCRYPTION_KEY`
 - AI calls: max 10/day (shared key) or 100/day (own key), tracked in `aiUsage` collection
-- Committed secrets are rejected by the `commit-msg` hook — no `Co-authored-by`, `Generated with`, or AI signatures
+- Committed secrets are rejected by the `commit-msg` hook - no `Co-authored-by`, `Generated with`, or AI signatures
 
 ---
 
