@@ -26,6 +26,7 @@ export async function connectDB(): Promise<typeof mongoose> {
     const opts: mongoose.ConnectOptions = {
       bufferCommands: false,
       maxPoolSize: 10,
+      dbName: 'Lockin',
     };
 
     cached.promise = mongoose.connect(env.MONGODB_URI, opts).then((mongooseInstance) => {
