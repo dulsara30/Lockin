@@ -38,6 +38,7 @@ export const authConfig: NextAuthConfig = {
         pathname.startsWith('/insights') ||
         pathname.startsWith('/templates') ||
         pathname.startsWith('/settings') ||
+        pathname.startsWith('/how-it-works') ||
         pathname.startsWith('/lockin');
 
       if (isAuthRoute) {
