@@ -12,12 +12,18 @@ const config: Config = {
     extend: {
       colors: {
         background: 'var(--background)',
+        bg: 'var(--background)',
         surface: 'var(--surface)',
         'surface-hover': 'var(--surface-hover)',
         border: 'var(--border)',
         foreground: 'var(--foreground)',
-        muted: 'var(--muted)',
+        text: 'var(--foreground)',
+        muted: 'var(--muted-foreground)',
         'muted-foreground': 'var(--muted-foreground)',
+        'muted-bg': 'var(--muted)',
+        lime: '#c6ff3d',
+        cyan: '#2de2e6',
+        violet: '#7c5cff',
         primary: {
           DEFAULT: 'var(--primary)',
           foreground: 'var(--primary-foreground)',
