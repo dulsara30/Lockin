@@ -2,20 +2,16 @@
 
 ## Current Phase
 
-- Phase 1: Foundation (Verification passed, PR opened)
+- Phase 2: Core Planning (PR Pending Merge)
 
 ## Completed
 
-- Tooling: Next.js 15, TypeScript strict, Tailwind CSS, Prettier, ESLint, Vitest.
-- Hooks: Husky + commitlint + custom signature rejection hook for co-authors.
-- CI: GitHub Actions workflow for lint, typecheck, tests, and build.
-- Security & Env: Zod env validation, `.env.example`, security headers, health route.
-- Database: Global cached Mongoose connection, RateLimit TTL model, User model.
-- Auth: Auth.js v5 credentials auth with bcryptjs cost 12 and Mongo rate limiter.
-- UI & Shell: Dark-first design tokens, collapsible sidebar, mobile nav, command palette.
-- Logos & Icons: Brand assets placed in public/ and app favicon configured.
-- Verification: Lint, typecheck, unit tests, and production build all passing.
+- Phase 1: Foundation merged into `main` (tooling, hooks, CI, env, MongoDB, Auth.js v5 credentials, dark-first UI shell).
+- Phase 2: Core Planning (Models & DAL with strict `userId` scoping, pure health & capacity engine, Runway pipeline with `@dnd-kit`, step drawer, Today view, Lock-in focus mode with mono timer, roll over preview modal, industry-standard README). All verification checks passed.
 
-## Next Phase
+## Next Steps
 
-- Phase 2: Core planning (missions + steps CRUD, Runway dnd-kit view, Today view, Lock-in mode, timer, roll over, capacity/health logic).
+- Merge PR #2 into `main` upon owner approval.
+- Phase 3: Brain Dump to Plan (AI generation via Gemini Flash/Flash-Lite, offline Markdown/checklist template import parser, shared preview & confirm UI, re-plan engine).
+- Phase 4: Insights & Customization (burn-down charts, planned vs actual, streaks, settings, import/export).
+- Phase 5: Hardening & Launch (WCAG AA audit, Playwright E2E, Vercel deployment).

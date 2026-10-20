@@ -1,27 +1,42 @@
 import { Metadata } from 'next';
-import { Zap } from 'lucide-react';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
+import { Suspense } from 'react';
+import { auth } from '@/lib/auth';
+import { getStepById } from '@/server/dal/steps';
+import { getMissionById } from '@/server/dal/missions';
+import { LockinModeView } from '@/features/lockin/components/lockin-mode-view';
 
-export const metadata: Metadata = {
-  title: 'Lock-In Mode',
-};
+export const metadata: Metadata = { title: 'Lock-In Mode' };
 
-export default function LockinModePage() {
+interface LockinPageProps {
+  searchParams: Promise<{ stepId?: string; missionId?: string }>;
+}
+
+export default async function LockinPage({ searchParams }: LockinPageProps) {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return null;
+
+  const { stepId, missionId } = await searchParams;
+  let stepData = null;
+
+  if (stepId) {
+    const [step, mission] = await Promise.all([
+      getStepById(userId, stepId),
+      missionId ? getMissionById(userId, missionId) : Promise.resolve(null),
+    ]);
+
+    if (step) {
+      stepData = {
+        ...JSON.parse(JSON.stringify(step)),
+        missionTitle: mission?.title,
+        missionColor: mission?.color,
+      };
+    }
+  }
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-[70vh] text-center space-y-4">
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 border border-primary/20 text-primary mb-2 shadow-lg shadow-primary/10">
-        <Zap className="h-7 w-7 text-primary" />
-      </div>
-      <h1 className="text-2xl font-bold tracking-tight text-foreground">Lock-In Mode</h1>
-      <p className="text-xs text-muted-foreground max-w-sm">
-        Full-screen single step focus with big mono timer and auto time logs.
-      </p>
-      <Link href="/today">
-        <Button variant="outline" size="sm" className="mt-2 text-xs">
-          Return to Today
-        </Button>
-      </Link>
-    </div>
+    <Suspense fallback={null}>
+      <LockinModeView step={stepData} />
+    </Suspense>
   );
 }
