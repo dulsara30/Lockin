@@ -41,6 +41,7 @@ interface NavItem {
 
 const mainNavItems: NavItem[] = [
   { title: 'Today', href: '/today', icon: CalendarCheck },
+  { title: 'Brain Dump', href: '/brain-dump', icon: Sparkles },
   { title: 'Missions', href: '/missions', icon: Target },
   { title: 'Runway', href: '/runway', icon: Route },
   { title: 'Insights', href: '/insights', icon: BarChart2 },

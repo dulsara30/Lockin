@@ -81,7 +81,7 @@ export function CommandPalette() {
           <CommandItem
             onSelect={() =>
               runCommand(() => {
-                router.push('/missions/brain-dump');
+                router.push('/brain-dump');
               })
             }
           >
