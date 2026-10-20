@@ -41,7 +41,13 @@ interface TodayDashboardProps {
   streakDays: number;
 }
 
-export function TodayDashboard({ todaySteps, totalPlannedMin, streakDays }: TodayDashboardProps) {
+export function TodayDashboard({
+  todaySteps,
+  nextUpStep: _nextUpStep,
+  totalPlannedMin,
+  totalCompletedMin: _totalCompletedMin,
+  streakDays,
+}: TodayDashboardProps) {
   const [steps, setSteps] = React.useState(todaySteps);
   const [dailyBrief, setDailyBrief] = React.useState<string | null>(null);
   const [isLoadingBrief, setIsLoadingBrief] = React.useState(false);

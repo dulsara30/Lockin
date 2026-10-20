@@ -64,6 +64,7 @@ export function BrainDumpView() {
           onend: () => void;
         })
       | undefined;
+
     if (!SpeechRecognition) return;
 
     const recognition = new SpeechRecognition();
@@ -232,31 +233,33 @@ export function BrainDumpView() {
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-200">
       {/* Title & Path Selector */}
       <div className="space-y-4 text-center">
-        <h1 className="text-3xl font-extrabold tracking-tight text-text">Brain Dump to Plan</h1>
-        <p className="text-muted text-sm max-w-xl mx-auto">
+        <h1 className="text-3xl font-extrabold tracking-tight text-[#F4F4FA]">
+          Brain Dump to Plan
+        </h1>
+        <p className="text-[#9A9AB5] text-sm max-w-xl mx-auto leading-relaxed">
           Turn scattered thoughts or structured checklists into an executable multi-day runway. Pick
           your preferred path below.
         </p>
 
         {/* Tab Switcher */}
-        <div className="inline-flex items-center p-1 rounded-xl bg-surface border border-border/80 shadow-sm">
+        <div className="inline-flex items-center p-1.5 rounded-2xl bg-[#14141F] border border-[#262637] shadow-lg">
           <button
             onClick={() => setActiveTab('ai')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
               activeTab === 'ai'
-                ? 'bg-primary text-white shadow-md shadow-primary/20'
-                : 'text-muted hover:text-text'
+                ? 'bg-primary text-white shadow-md shadow-primary/25'
+                : 'text-[#9A9AB5] hover:text-[#F4F4FA] hover:bg-[#1A1A2B]'
             }`}
           >
-            <Sparkles className="h-4 w-4" />
+            <Sparkles className="h-4 w-4 text-cyan" />
             Path A: Gemini AI
           </button>
           <button
             onClick={() => setActiveTab('template')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
               activeTab === 'template'
-                ? 'bg-primary text-white shadow-md shadow-primary/20'
-                : 'text-muted hover:text-text'
+                ? 'bg-primary text-white shadow-md shadow-primary/25'
+                : 'text-[#9A9AB5] hover:text-[#F4F4FA] hover:bg-[#1A1A2B]'
             }`}
           >
             <FileCode className="h-4 w-4" />
@@ -268,9 +271,9 @@ export function BrainDumpView() {
       {/* Path A: Gemini AI Brain Dump */}
       {activeTab === 'ai' && (
         <form onSubmit={handleGenerateAi} className="space-y-6">
-          <div className="rounded-xl border border-border/80 bg-surface/70 p-6 backdrop-blur space-y-5">
+          <div className="rounded-2xl border border-[#262637] bg-[#14141F] p-6 shadow-xl space-y-6">
             {aiError && (
-              <div className="p-4 rounded-lg bg-danger/10 border border-danger/30 text-danger text-sm flex items-start justify-between gap-3">
+              <div className="p-4 rounded-xl bg-danger/10 border border-danger/30 text-danger text-sm flex items-start justify-between gap-3">
                 <div className="flex items-start gap-2.5">
                   <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
                   <div>
@@ -293,18 +296,18 @@ export function BrainDumpView() {
               </div>
             )}
 
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-semibold text-text">
+                <label className="text-sm font-semibold text-[#F4F4FA]">
                   What are you trying to get done?
                 </label>
                 <button
                   type="button"
                   onClick={toggleVoiceInput}
-                  className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border transition-all ${
+                  className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border transition-all ${
                     isListening
-                      ? 'border-danger/60 bg-danger/10 text-danger animate-pulse'
-                      : 'border-border/80 bg-bg/50 text-muted hover:text-text'
+                      ? 'border-danger/60 bg-danger/20 text-danger animate-pulse'
+                      : 'border-[#262637] bg-[#1A1A2B] text-[#9A9AB5] hover:text-[#F4F4FA] hover:border-primary/50'
                   }`}
                   title="Click to dictate using speech"
                 >
@@ -314,7 +317,7 @@ export function BrainDumpView() {
                     </>
                   ) : (
                     <>
-                      <Mic className="h-3.5 w-3.5" /> Voice Dictate
+                      <Mic className="h-3.5 w-3.5 text-cyan" /> Voice Dictate
                     </>
                   )}
                 </button>
@@ -325,75 +328,75 @@ export function BrainDumpView() {
                 onChange={(e) => setAiPrompt(e.target.value)}
                 rows={6}
                 placeholder="Dump everything here: chaotic objectives, rough steps, requirements, deadlines. Gemini will break it down into realistic daily steps, estimates, and subtasks..."
-                className="w-full rounded-lg border border-border bg-bg/70 p-3.5 text-sm text-text placeholder:text-muted/60 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/40 leading-relaxed font-sans"
+                className="w-full rounded-xl border border-[#262637] bg-[#0C0C14] p-4 text-sm text-[#F4F4FA] placeholder:text-[#9A9AB5]/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/40 leading-relaxed font-sans shadow-inner"
               />
             </div>
 
             {/* Pipeline Configuration Parameters */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-border/50">
-              <div className="space-y-1.5">
-                <label className="text-xs text-muted font-medium flex items-center gap-1.5">
-                  <Calendar className="h-3.5 w-3.5 text-primary" /> Target Days
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 pt-4 border-t border-[#262637]">
+              <div className="space-y-2">
+                <label className="text-xs text-[#9A9AB5] font-semibold flex items-center gap-1.5">
+                  <Calendar className="h-3.5 w-3.5 text-primary" /> Target Runway Days
                 </label>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3 bg-[#0C0C14] border border-[#262637] rounded-xl px-3 py-2">
                   <input
                     type="range"
                     min={1}
                     max={14}
                     value={days}
                     onChange={(e) => setDays(parseInt(e.target.value, 10))}
-                    className="flex-1 accent-primary"
+                    className="flex-1 accent-primary cursor-pointer"
                   />
-                  <span className="font-mono text-sm font-bold text-text w-8 text-right">
+                  <span className="font-mono text-sm font-bold text-[#F4F4FA] w-8 text-right">
                     {days}d
                   </span>
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs text-muted font-medium flex items-center gap-1.5">
-                  <Clock className="h-3.5 w-3.5 text-info" /> Hours / Day
+              <div className="space-y-2">
+                <label className="text-xs text-[#9A9AB5] font-semibold flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5 text-info" /> Hours / Day Cap
                 </label>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3 bg-[#0C0C14] border border-[#262637] rounded-xl px-3 py-2">
                   <input
                     type="range"
                     min={1}
                     max={12}
                     value={hoursPerDay}
                     onChange={(e) => setHoursPerDay(parseInt(e.target.value, 10))}
-                    className="flex-1 accent-info"
+                    className="flex-1 accent-info cursor-pointer"
                   />
-                  <span className="font-mono text-sm font-bold text-text w-8 text-right">
+                  <span className="font-mono text-sm font-bold text-[#F4F4FA] w-8 text-right">
                     {hoursPerDay}h
                   </span>
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs text-muted font-medium">Priority Level</label>
+              <div className="space-y-2">
+                <label className="text-xs text-[#9A9AB5] font-semibold">Priority Level</label>
                 <select
                   value={priority}
                   onChange={(e) => setPriority(e.target.value as 'low' | 'medium' | 'high')}
-                  className="w-full rounded-md border border-border bg-bg px-2.5 py-1.5 text-xs text-text focus:outline-none focus:ring-1 focus:ring-primary font-medium"
+                  className="w-full rounded-xl border border-[#262637] bg-[#0C0C14] px-3.5 py-2.5 text-xs text-[#F4F4FA] focus:outline-none focus:border-primary font-medium shadow-inner"
                 >
-                  <option value="low">Low (Flexible)</option>
-                  <option value="medium">Medium (Standard)</option>
+                  <option value="low">Low (Flexible Pace)</option>
+                  <option value="medium">Medium (Standard Sprint)</option>
                   <option value="high">High (Urgent / Lock In)</option>
                 </select>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted flex items-center gap-1.5">
-              <HelpCircle className="h-3.5 w-3.5" />
-              Shared quota: 10 calls/day. Add your BYOK key in Settings for 100/day.
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <span className="text-xs text-[#9A9AB5] flex items-center gap-1.5">
+              <HelpCircle className="h-3.5 w-3.5 text-primary" />
+              Shared quota: 10 calls/day. Add your free BYOK key in Settings for 100/day.
             </span>
 
             <Button
               type="submit"
               disabled={isGenerating}
-              className="bg-primary hover:bg-primary/90 text-white font-semibold px-6 shadow-lg shadow-primary/25 gap-2"
+              className="bg-primary hover:bg-primary/90 text-white font-semibold px-6 py-2.5 rounded-xl shadow-lg shadow-primary/25 gap-2 transition-all hover:scale-[1.02]"
             >
               {isGenerating ? (
                 <>
@@ -413,27 +416,27 @@ export function BrainDumpView() {
       {/* Path B: Template Import */}
       {activeTab === 'template' && (
         <form onSubmit={handleParseTemplate} className="space-y-6">
-          <div className="rounded-xl border border-border/80 bg-surface/70 p-6 backdrop-blur space-y-5">
+          <div className="rounded-2xl border border-[#262637] bg-[#14141F] p-6 shadow-xl space-y-6">
             {templateError && (
-              <div className="p-4 rounded-lg bg-danger/10 border border-danger/30 text-danger text-sm flex items-center gap-2.5">
+              <div className="p-4 rounded-xl bg-danger/10 border border-danger/30 text-danger text-sm flex items-center gap-2.5">
                 <AlertCircle className="h-5 w-5 shrink-0" />
                 <span>{templateError}</span>
               </div>
             )}
 
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/50">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#262637]">
               {/* Format selection */}
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-muted">Format:</span>
+                <span className="text-xs font-semibold text-[#9A9AB5]">Format:</span>
                 {(['markdown', 'json', 'checklist'] as const).map((fmt) => (
                   <button
                     key={fmt}
                     type="button"
                     onClick={() => setTemplateFormat(fmt)}
-                    className={`px-3 py-1 rounded text-xs font-medium transition-all ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                       templateFormat === fmt
-                        ? 'bg-primary/20 text-primary border border-primary/40'
-                        : 'bg-bg text-muted hover:text-text border border-border/60'
+                        ? 'bg-primary/20 text-white border border-primary/50 shadow-sm'
+                        : 'bg-[#0C0C14] text-[#9A9AB5] hover:text-[#F4F4FA] border border-[#262637]'
                     }`}
                   >
                     {fmt === 'markdown'
@@ -450,18 +453,18 @@ export function BrainDumpView() {
                 <button
                   type="button"
                   onClick={() => downloadSampleTemplate('markdown')}
-                  className="inline-flex items-center gap-1 text-[11px] text-muted hover:text-text bg-bg border border-border/60 px-2 py-1 rounded"
+                  className="inline-flex items-center gap-1.5 text-xs text-[#9A9AB5] hover:text-[#F4F4FA] bg-[#0C0C14] border border-[#262637] hover:border-primary/40 px-2.5 py-1.5 rounded-lg transition-colors"
                   title="Download sample Markdown template"
                 >
-                  <Download className="h-3 w-3" /> Sample .md
+                  <Download className="h-3.5 w-3.5 text-cyan" /> Sample .md
                 </button>
                 <button
                   type="button"
                   onClick={() => downloadSampleTemplate('json')}
-                  className="inline-flex items-center gap-1 text-[11px] text-muted hover:text-text bg-bg border border-border/60 px-2 py-1 rounded"
+                  className="inline-flex items-center gap-1.5 text-xs text-[#9A9AB5] hover:text-[#F4F4FA] bg-[#0C0C14] border border-[#262637] hover:border-primary/40 px-2.5 py-1.5 rounded-lg transition-colors"
                   title="Download sample JSON template"
                 >
-                  <Download className="h-3 w-3" /> Sample .json
+                  <Download className="h-3.5 w-3.5 text-cyan" /> Sample .json
                 </button>
 
                 <input
@@ -474,16 +477,16 @@ export function BrainDumpView() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex items-center gap-1 text-[11px] text-primary hover:bg-primary/10 border border-primary/40 px-2.5 py-1 rounded transition-colors"
+                  className="inline-flex items-center gap-1.5 text-xs text-primary hover:bg-primary/10 border border-primary/40 px-3 py-1.5 rounded-lg transition-colors font-medium"
                 >
-                  <Upload className="h-3 w-3" /> Upload File
+                  <Upload className="h-3.5 w-3.5" /> Upload File
                 </button>
               </div>
             </div>
 
             {/* Template Paste Area */}
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-text block">
+              <label className="text-xs font-semibold text-[#F4F4FA] block">
                 Paste Template Text or Checklist:
               </label>
               <textarea
@@ -497,33 +500,37 @@ export function BrainDumpView() {
                       ? `- [ ] Build login page | 45m\n- [ ] Design landing hero | 60m\n- [ ] Setup Stripe payment gateway | 120m`
                       : `{\n  "title": "Launch MVP",\n  "dayCount": 5,\n  "hoursPerDay": 4,\n  "days": [...]\n}`
                 }
-                className="w-full rounded-lg border border-border bg-bg/80 p-3.5 text-xs text-text font-mono placeholder:text-muted/40 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/40 leading-relaxed"
+                className="w-full rounded-xl border border-[#262637] bg-[#0C0C14] p-4 text-xs text-[#F4F4FA] font-mono placeholder:text-[#9A9AB5]/40 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/40 leading-relaxed shadow-inner"
               />
             </div>
 
             {/* Checklist auto-distribution options */}
             {templateFormat === 'checklist' && (
-              <div className="grid grid-cols-2 gap-4 p-3 bg-bg/40 rounded-lg border border-border/40 text-xs">
+              <div className="grid grid-cols-2 gap-4 p-4 bg-[#0C0C14] rounded-xl border border-[#262637] text-xs">
                 <div>
-                  <label className="text-muted block mb-1">Distribute across days:</label>
+                  <label className="text-[#9A9AB5] font-medium block mb-1.5">
+                    Distribute across days:
+                  </label>
                   <input
                     type="number"
                     min={1}
                     max={30}
                     value={days}
                     onChange={(e) => setDays(parseInt(e.target.value, 10) || 5)}
-                    className="w-16 bg-surface border border-border rounded px-2 py-1 text-text font-mono"
+                    className="w-20 bg-[#14141F] border border-[#262637] rounded-lg px-2.5 py-1 text-[#F4F4FA] font-mono text-xs"
                   />
                 </div>
                 <div>
-                  <label className="text-muted block mb-1">Target hours per day:</label>
+                  <label className="text-[#9A9AB5] font-medium block mb-1.5">
+                    Target hours per day:
+                  </label>
                   <input
                     type="number"
                     min={1}
                     max={24}
                     value={hoursPerDay}
                     onChange={(e) => setHoursPerDay(parseInt(e.target.value, 10) || 4)}
-                    className="w-16 bg-surface border border-border rounded px-2 py-1 text-text font-mono"
+                    className="w-20 bg-[#14141F] border border-[#262637] rounded-lg px-2.5 py-1 text-[#F4F4FA] font-mono text-xs"
                   />
                 </div>
               </div>
@@ -531,7 +538,7 @@ export function BrainDumpView() {
           </div>
 
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted flex items-center gap-1.5">
+            <span className="text-xs text-[#9A9AB5] flex items-center gap-1.5">
               <CheckCircle2 className="h-3.5 w-3.5 text-lime" />
               100% offline, private, and zero AI cost.
             </span>
@@ -539,7 +546,7 @@ export function BrainDumpView() {
             <Button
               type="submit"
               disabled={isParsing}
-              className="bg-primary hover:bg-primary/90 text-white font-semibold px-6 shadow-lg shadow-primary/25 gap-2"
+              className="bg-primary hover:bg-primary/90 text-white font-semibold px-6 py-2.5 rounded-xl shadow-lg shadow-primary/25 gap-2 transition-all hover:scale-[1.02]"
             >
               {isParsing ? (
                 'Parsing Structure...'
