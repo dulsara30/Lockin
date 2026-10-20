@@ -1,0 +1,121 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Dark-first defaults */
+    --background: #0a0a12;
+    --surface: #14141f;
+    --surface-hover: #1a1a2b;
+    --border: #262637;
+    --foreground: #f4f4fa;
+    --muted: #1e1e2f;
+    --muted-foreground: #9a9ab5;
+
+    --primary: #7c5cff;
+    --primary-foreground: #ffffff;
+    --primary-hover: #6a4ae6;
+
+    --info: #2de2e6;
+    --info-foreground: #0a0a12;
+
+    --success: #c6ff3d;
+    --success-foreground: #0a0a12;
+
+    --warning: #ffb020;
+    --warning-foreground: #0a0a12;
+
+    --danger: #ff5d73;
+    --danger-foreground: #ffffff;
+
+    --radius: 14px;
+  }
+
+  .light {
+    --background: #f8f8fd;
+    --surface: #ffffff;
+    --surface-hover: #f0f0fa;
+    --border: #e2e2ee;
+    --foreground: #12121a;
+    --muted: #ededf6;
+    --muted-foreground: #66667e;
+
+    --primary: #6842ff;
+    --primary-foreground: #ffffff;
+    --primary-hover: #5530e0;
+
+    --info: #0cb8bc;
+    --info-foreground: #ffffff;
+
+    --success: #6eab00;
+    --success-foreground: #ffffff;
+
+    --warning: #d98800;
+    --warning-foreground: #ffffff;
+
+    --danger: #e03e55;
+    --danger-foreground: #ffffff;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
+  }
+  ::selection {
+    background-color: rgba(124, 92, 255, 0.3);
+    color: var(--foreground);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Glass effect utilities */
+.glass-surface {
+  background: rgba(20, 20, 31, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(38, 38, 55, 0.8);
+}
+
+.glass-panel {
+  background: rgba(14, 14, 23, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+}
+
+/* Scrollbar customization */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #262637;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a52;
+}
