@@ -2,20 +2,23 @@
 
 ## Current Phase
 
-- Phase 1: Foundation (Verification passed, PR opened)
+- Phase 2: Core Planning (In Progress)
 
 ## Completed
 
-- Tooling: Next.js 15, TypeScript strict, Tailwind CSS, Prettier, ESLint, Vitest.
-- Hooks: Husky + commitlint + custom signature rejection hook for co-authors.
-- CI: GitHub Actions workflow for lint, typecheck, tests, and build.
-- Security & Env: Zod env validation, `.env.example`, security headers, health route.
-- Database: Global cached Mongoose connection, RateLimit TTL model, User model.
-- Auth: Auth.js v5 credentials auth with bcryptjs cost 12 and Mongo rate limiter.
-- UI & Shell: Dark-first design tokens, collapsible sidebar, mobile nav, command palette.
-- Logos & Icons: Brand assets placed in public/ and app favicon configured.
-- Verification: Lint, typecheck, unit tests, and production build all passing.
+- Phase 1: Foundation merged into `main` (tooling, hooks, CI, env, MongoDB, Auth.js v5 credentials, dark-first UI shell).
 
-## Next Phase
+## In Progress / Next Steps
 
-- Phase 2: Core planning (missions + steps CRUD, Runway dnd-kit view, Today view, Lock-in mode, timer, roll over, capacity/health logic).
+- Mission and Step Mongoose models + indexes.
+- Security-enforced Data Access Layer (`src/server/dal/`) requiring `userId` on all queries.
+- Pure mission capacity & health logic (On track, At risk, Behind) + Vitest unit tests.
+- Missions CRUD (create, update, delete, archive) with priority, tags, dayCount.
+- Steps CRUD with fractional indexing for single-write reordering.
+- Runway view hero pipeline connecting day columns with glow states and capacity meters.
+- Drag-and-drop step reordering within and across days via `@dnd-kit`.
+- Step drawer for title, markdown notes, estimates, subtask checklist, custom fields.
+- Today view integrating all missions, "Next Up" card, capacity meter, streak flame.
+- Lock-in mode full-screen single-step focus with big mono timer and timeLog writes.
+- Roll over preview & apply logic moving unfinished steps forward.
+- Phase 2 bulk verification (`pnpm verify`) and PR opening.
