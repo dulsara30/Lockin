@@ -12,9 +12,11 @@ import {
   ArrowRight,
   Target,
   Play,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { actionUpdateStep } from '@/features/missions/actions';
+import { getDailyBriefAction } from '@/features/brain-dump/actions';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -39,14 +41,10 @@ interface TodayDashboardProps {
   streakDays: number;
 }
 
-export function TodayDashboard({
-  todaySteps,
-  nextUpStep,
-  totalPlannedMin,
-  totalCompletedMin,
-  streakDays,
-}: TodayDashboardProps) {
+export function TodayDashboard({ todaySteps, totalPlannedMin, streakDays }: TodayDashboardProps) {
   const [steps, setSteps] = React.useState(todaySteps);
+  const [dailyBrief, setDailyBrief] = React.useState<string | null>(null);
+  const [isLoadingBrief, setIsLoadingBrief] = React.useState(false);
   const capacityMin = 240;
 
   const completedToday = steps.filter((s) => s.status === 'done').length;
@@ -67,6 +65,23 @@ export function TodayDashboard({
       toast.error('Failed to update step');
     } else if (newStatus === 'done') {
       toast.success('Step complete! 🎯');
+    }
+  };
+
+  const handleGenerateBrief = async () => {
+    setIsLoadingBrief(true);
+    try {
+      const res = await getDailyBriefAction();
+      if (res.success && res.brief) {
+        setDailyBrief(res.brief);
+        toast.success('Strategic daily brief generated.');
+      } else {
+        toast.error(res.error || 'Could not generate briefing.');
+      }
+    } catch {
+      toast.error('Unexpected error generating briefing.');
+    } finally {
+      setIsLoadingBrief(false);
     }
   };
 
@@ -104,6 +119,40 @@ export function TodayDashboard({
             </span>
           </div>
         </div>
+      </div>
+
+      {/* Daily Brief (Manual trigger only) */}
+      <div>
+        {!dailyBrief ? (
+          <button
+            onClick={handleGenerateBrief}
+            disabled={isLoadingBrief}
+            className="inline-flex items-center gap-2 text-xs text-primary font-medium hover:text-primary/90 transition-colors bg-primary/10 border border-primary/20 hover:border-primary/40 rounded-xl px-3.5 py-2 shadow-sm"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            <span>{isLoadingBrief ? 'Crafting Daily Briefing...' : 'Get AI Daily Brief'}</span>
+          </button>
+        ) : (
+          <div className="rounded-xl border border-primary/30 bg-surface/80 p-4 shadow-lg backdrop-blur flex items-start gap-3">
+            <div className="rounded-lg bg-primary/15 p-2 text-primary shrink-0">
+              <Sparkles className="h-4 w-4" />
+            </div>
+            <div className="flex-1 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-primary">
+                  Today&apos;s Strategic Brief
+                </span>
+                <button
+                  onClick={() => setDailyBrief(null)}
+                  className="text-muted-foreground hover:text-foreground p-1 transition-colors"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <p className="text-sm text-foreground/90 leading-relaxed font-sans">{dailyBrief}</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Capacity Bar */}
@@ -168,12 +217,20 @@ export function TodayDashboard({
           <p className="text-xs text-muted-foreground mt-1.5 mb-5 max-w-sm mx-auto">
             Create a mission and plan your runway to see today&apos;s focused task list here.
           </p>
-          <Link href="/missions/new">
-            <Button className="bg-primary hover:bg-primary-hover text-white text-xs gap-2">
-              <span>Create Mission Pipeline</span>
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Button>
-          </Link>
+          <div className="flex items-center justify-center gap-3">
+            <Link href="/brain-dump">
+              <Button className="bg-primary hover:bg-primary-hover text-white text-xs gap-2">
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>Brain Dump to Plan</span>
+              </Button>
+            </Link>
+            <Link href="/missions/new">
+              <Button variant="outline" className="text-xs gap-2">
+                <span>Manual Mission</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+            </Link>
+          </div>
         </div>
       ) : (
         <div className="rounded-2xl border border-success/40 bg-success/[0.03] p-6 text-center shadow-sm">

@@ -19,6 +19,7 @@ import { RunwayDayColumn } from './runway-day-column';
 import { RunwayStepCard } from './runway-step-card';
 import { StepDrawer, StepData } from '@/features/steps/components/step-drawer';
 import { RolloverModal } from './rollover-modal';
+import { ReplanModal } from './replan-modal';
 import { calculateMissionHealth, MissionHealthResult } from '@/lib/planning';
 import { actionCreateStep, actionReorderStep, actionUpdateStep } from '@/features/missions/actions';
 import { Button } from '@/components/ui/button';
@@ -54,6 +55,7 @@ export function RunwayPipeline({
   const [activeStep, setActiveStep] = React.useState<StepData | null>(null);
   const [selectedStep, setSelectedStep] = React.useState<StepData | null>(null);
   const [isRolloverOpen, setIsRolloverOpen] = React.useState(false);
+  const [isReplanOpen, setIsReplanOpen] = React.useState(false);
   const [currentDayIndex, setCurrentDayIndex] = React.useState(0);
 
   // Synchronize initial steps
@@ -290,6 +292,17 @@ export function RunwayPipeline({
 
         {/* Action Controls */}
         <div className="flex items-center gap-2.5">
+          {/* Re-plan Trigger */}
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setIsReplanOpen(true)}
+            className="text-xs gap-1.5 bg-surface border-border hover:bg-surface-hover text-warning"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-warning" />
+            <span>Re-plan</span>
+          </Button>
+
           {/* Roll Over Trigger */}
           <Button
             variant="secondary"
