@@ -1,9 +1,9 @@
 <img src="public/logo.svg" alt="Lockin" height="48" />
 
-# Lockin - Mission-Driven Work Planning
+# Lockin - Mission-Driven Work Planning (v1.0.0)
 
-> **Turn big tasks into a pipeline of days.**  
-> Lockin is a premium, dark-first work-planning app that breaks complex initiatives into sequenced daily lanes - with workload capacity forecasting, drag-and-drop pipelines, a focus timer, and AI-powered planning.
+> **Turn big initiatives into an sequenced pipeline of days.**  
+> Lockin is a dark-first, mission-driven work planning and execution platform that breaks complex projects into sequenced daily lanes - with workload capacity forecasting, versioned runways, 24-hour day focus clocks, zero-latency drag-and-drop kanbans, full-screen lock-in focus timers, and Gemini-powered planning and feasibility re-planning.
 
 [![CI](https://github.com/dulsara30/Lockin/actions/workflows/ci.yml/badge.svg)](https://github.com/dulsara30/Lockin/actions/workflows/ci.yml)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org)
@@ -13,83 +13,57 @@
 
 ---
 
-## ✨ Feature Overview
-
-### 🚀 Runway View - Hero Pipeline
-
-- Visual day columns connected by a pipeline line - see your entire sprint at a glance
-- **Finished days** glow lime, **today** is outlined violet, **overloaded days** turn amber
-- Per-day capacity meters (planned hours vs daily limit)
-- Drag steps between days and reorder within a day - single fractional-index write to DB
-- Inline step creation per day lane
+## ✨ Features
 
 ### 🎯 Mission Control
 
-- Create missions with title, description, color, priority, tags, start date, deadline, and day count
-- Full CRUD with cascade deletion and archive/restore
-- Mission health badge: **On track / At risk / Behind / Completed** - computed by a pure, well-tested function from remaining estimate vs remaining capacity
+- Define high-stakes initiatives with title, description, color, priority, tags, target deadlines, and day counts.
+- Real-time mission health badge: **On track / At risk / Behind / Completed**, calculated dynamically from remaining task estimates versus scheduled capacity.
+- Cascade deletion, archive/restore workflows, and user-scoped data access.
 
-### ✅ Step Management
+### 🚀 Runway View - Multi-Day Pipeline
 
-- Rich step drawer: title, markdown notes (rendered safely via react-markdown), estimate, status picker, subtask checklist, time log history
-- Statuses: `todo · doing · done · blocked · skipped`
-- Quick-toggle done from Runway and Today views
-- All queries scoped by `userId` through a mandatory data-access layer - never by ID alone
+- Visual day columns connected along an interactive sprint runway.
+- **Finished days** glow lime, **today** is highlighted in violet, and **overloaded days** turn amber.
+- Drag steps between days or reorder within a day using fractional indexing (`fractional-indexing`).
+- Per-day capacity meters showing planned hours vs daily work limits.
+- Instant modal and inline step creation per day lane.
+
+### 🔀 Versioned Runways & AI Re-planning
+
+- **Preserved History:** The original runway (v1) is permanently archived and never overwritten.
+- **AI Feasibility Engine:** Analyzes remaining workload, overdue days, and remaining deadline days.
+- **Overwork & Extra Days Calculation:** Identifies whether remaining tasks can fit within regular hours or calculates exact overwork hours/day and extra calendar days needed.
+- **Version Branching:** Automatically branches into a new active version (e.g., v2, v3) with one-click version switching.
+
+### ⏱️ Day Focus & 24-Hour Commitment Clock
+
+- Dedicated daily execution view (`/runway/day/[dayIndex]`) organized into 5 status columns: `todo`, `in_progress`, `done`, `blocked`, and `skipped`.
+- **Start Day Confirmation Modal:** Prevents accidental clock activation.
+- **24-Hour Countdown Timer:** Displays exact hours and minutes remaining. If unfinished after 24 hours, the day triggers an overdue penalty warning and signals a need for runway re-planning.
+- **Optimistic Drag & Drop:** Zero-latency task status transitions with automatic server synchronization and rollback on error.
 
 ### ⚡ Lock-In Mode
 
-- Full-screen focus on a single step
-- Big mono timer (start / pause / stop) - every session automatically writes a `timeLog`
-- Tracks actual vs estimated time; `actualMin` updated on step after each session
-- Keyboard-accessible; respects `prefers-reduced-motion`
+- Full-screen distraction-free focus workspace for individual steps.
+- Monospace focus timer (start / pause / stop) logging sessions to `timeLogs`.
+- Tracks actual versus estimated duration; updates `actualMin` upon session completion.
+- Keyboard-accessible and respects `prefers-reduced-motion`.
 
-### 📅 Today View
+### 🤖 AI Brain Dump & Structured Templates
 
-- Today's steps across all active missions in one dashboard
-- **Next Up** hero card with one-click Lock-In entry
-- Daily capacity meter (planned vs 4h default)
-- Streak flame counter from activity history
+- **AI Brain Dump:** Transform raw notes and unstructured briefs into sequenced, day-by-day execution plans using Google Gemini (`@google/genai`).
+- **Template System:** Download and import Markdown or JSON sprint templates for offline or external LLM workflows without consuming AI tokens.
+- **Shared Interactive Preview:** Review, customize, and edit steps before committing to the database.
 
-### 🔁 Roll Over
+### 📊 Insights & Analytics
 
-- One-click preview of moving unfinished past steps to the next day
-- Shows **before / after health badge** and capacity impact before applying
-- Preview is computed by a pure function - nothing written until confirmed
+- Visual burndown charts, planned vs actual duration comparisons, completion rates, and streak counters.
+- Per-mission progress rings and historical activity logs.
 
-### 🤖 Brain Dump to Plan (Phase 3)
+### 🧭 "How It Works" Interactive Guide
 
-- **AI path:** big textbox → Gemini generates a full mission with day-wise steps, estimates, priorities, and subtasks
-- **Template path:** download Markdown / JSON template, fill it manually or with any LLM, upload/paste → parsed without AI cost
-- Both land on a shared **Preview screen**: edit, drag, delete - nothing saved until Confirm
-- Re-plan: redistributes remaining steps over remaining days when behind
-
-### 📊 Insights (Phase 4)
-
-- Burn-down chart, planned vs actual time, completion rate, streak, busiest days
-- Per-mission progress rings
-
-### 🎨 Design System
-
-- Dark-first with CSS variable tokens (`#0A0A12` bg, `#7C5CFF` primary, `#2DE2E6` info, `#C6FF3D` success/wins)
-- Signature violet→cyan gradient for logo, progress rings, and hero cards
-- Inter (UI) + Geist Mono (timers, numbers)
-- Glass surfaces, subtle borders, purposeful motion (150–250ms)
-- Confetti **only** when a whole mission completes; respects `prefers-reduced-motion`
-- Full dark/light theme, WCAG AA contrast throughout
-
-### ⌨️ Command Palette
-
-- `Ctrl/Cmd+K` opens the palette from anywhere
-- Navigate, create missions, start Brain Dump, enter Lock-In - all from the keyboard
-
-### 🔒 Security
-
-- Every DB document has `userId`; every query goes through a DAL that requires it
-- All server inputs validated with Zod; no secrets in client code or logs
-- Passwords hashed with bcryptjs (cost 12); email normalized on write
-- Rate limiting via MongoDB TTL collection - serverless-safe, no in-memory state
-- AES-256-GCM encrypted BYOK Gemini API key
-- Security headers (CSP, X-Frame-Options, HSTS, Permissions-Policy) in `next.config.ts`
+- Dedicated in-app guide (`/how-it-works`) breaking down the 4-level data hierarchy (`Mission` → `Runway` → `Day` → `Step`), core feature mechanisms, system rules, and step-by-step operator workflows.
 
 ---
 
@@ -99,75 +73,75 @@
 src/
 ├── app/                   # Next.js App Router routes
 │   ├── (app)/             # Authenticated route group with sidebar layout
-│   │   ├── today/         # Today dashboard
-│   │   ├── missions/      # Missions list + new mission form
-│   │   ├── runway/        # Runway pipeline hero view
-│   │   ├── lockin/        # Lock-in focus mode
-│   │   ├── insights/      # Analytics (Phase 4)
-│   │   ├── templates/     # Templates (Phase 4)
-│   │   └── settings/      # User settings (Phase 4)
+│   │   ├── today/         # Daily unified dashboard
+│   │   ├── missions/      # Mission management & creation
+│   │   ├── runway/        # Runway pipeline & day focus (/runway/day/[dayIndex])
+│   │   ├── lockin/        # Full-screen lock-in focus mode
+│   │   ├── insights/      # Analytics & velocity charts
+│   │   ├── templates/     # Sprint templates & manual imports
+│   │   ├── settings/      # Account settings & BYOK API keys
+│   │   └── how-it-works/  # Interactive platform architecture guide
 │   ├── api/
-│   │   ├── auth/          # Auth.js handler
-│   │   └── health/        # /api/health status endpoint
-│   ├── login/             # Sign-in page
-│   └── signup/            # Registration page
+│   │   ├── auth/          # Auth.js route handlers
+│   │   └── health/        # Health check endpoint
+│   ├── login/             # Authentication login
+│   └── signup/            # User registration
 │
-├── features/              # Feature-sliced components and actions
-│   ├── auth/              # Login, signup forms and server actions
-│   ├── missions/          # Mission CRUD forms, list view, server actions, Zod schemas
-│   ├── steps/             # Step drawer component
-│   ├── runway/            # Runway pipeline, day column, step card, rollover modal
-│   ├── today/             # Today dashboard components
-│   └── lockin/            # Lock-in mode view with timer
+├── features/              # Feature-sliced components and server actions
+│   ├── auth/              # Auth forms and credentials handlers
+│   ├── missions/          # Mission CRUD, validation schemas, actions
+│   ├── runway/            # Runway pipelines, day view, dnd logic, actions
+│   ├── steps/             # Step drawer, checklists, time logging
+│   ├── today/             # Today dashboard and next-up widgets
+│   ├── lockin/            # Focus timer and session recorder
+│   ├── planner/           # AI Brain Dump and template parser
+│   ├── insights/          # Burndown and velocity analytics
+│   └── guide/             # How It Works interactive visualizer
 │
 ├── server/
-│   ├── models/            # Mongoose models (User, Mission, Step, TimeLog, Activity, RateLimit)
-│   └── dal/               # Data-access layer - all queries require userId
+│   ├── models/            # Mongoose schemas (User, Mission, Runway, Step, TimeLog, Activity)
+│   └── dal/               # Scoped data-access layer (all require userId)
 │       ├── missions.ts
+│       ├── runways.ts
 │       ├── steps.ts
 │       ├── timeLogs.ts
+│       ├── activities.ts
 │       └── today.ts
 │
-├── lib/                   # Shared utilities
+├── lib/                   # Core platform utilities
 │   ├── db.ts              # Cached Mongoose connection (dbName: Lockin)
-│   ├── auth.ts            # Auth.js v5 NextAuth config with Credentials provider
-│   ├── auth.config.ts     # Edge-compatible auth config (for middleware)
-│   ├── env.ts             # Zod environment validation - fails fast at startup
-│   ├── ratelimit.ts       # MongoDB TTL-backed rate limiter
-│   ├── planning.ts        # Pure mission health & capacity engine (fully unit tested)
-│   └── utils.ts           # cn() and helpers
+│   ├── auth.ts            # Auth.js v5 credentials configuration
+│   ├── auth.config.ts     # Edge-compatible auth rules
+│   ├── env.ts             # Zod environment validation
+│   ├── planning.ts        # Pure health, capacity, and rollover engine
+│   ├── ratelimit.ts       # MongoDB TTL rate limiting
+│   └── utils.ts           # Styling and formatting helpers
 │
-├── components/
-│   ├── ui/                # Design system primitives (Button, Input, Dialog, Command…)
-│   ├── layout/            # Sidebar, MobileNav, CommandPalette
-│   └── providers.tsx      # SessionProvider, QueryClientProvider, Toaster
-│
-└── middleware.ts           # Auth middleware protecting app routes
+└── middleware.ts          # Route protection and session validation
 ```
 
 ---
 
 ## 🛠️ Tech Stack
 
-| Layer         | Technology                                   |
-| ------------- | -------------------------------------------- |
-| Framework     | Next.js 15 (App Router, RSC, Server Actions) |
-| Language      | TypeScript (strict mode)                     |
-| Styling       | Tailwind CSS 3 + custom design tokens        |
-| UI Components | Radix UI primitives + shadcn/ui patterns     |
-| Drag & Drop   | @dnd-kit/core + @dnd-kit/sortable            |
-| State         | TanStack Query v5 (optimistic updates)       |
-| Forms         | react-hook-form + Zod                        |
-| Animation     | Framer Motion                                |
-| Database      | MongoDB Atlas via Mongoose 8                 |
-| Auth          | Auth.js v5 (Credentials; Google-ready)       |
-| Passwords     | bcryptjs (cost 12)                           |
-| AI            | Google Gemini via `@google/genai`            |
-| Testing       | Vitest (unit) + Playwright (e2e, Phase 5)    |
-| Linting       | ESLint (next/core-web-vitals) + Prettier     |
-| Commits       | Husky + commitlint (Conventional Commits)    |
-| CI            | GitHub Actions                               |
-| Deploy        | Vercel (region: `sin1` / `bom1`)             |
+| Layer         | Technology                                       |
+| ------------- | ------------------------------------------------ |
+| Framework     | Next.js 15 (App Router, RSC, Server Actions)     |
+| Language      | TypeScript 5 (Strict Mode)                       |
+| Styling       | Tailwind CSS 3 + Radix UI + Custom Design Tokens |
+| Drag & Drop   | `@dnd-kit/core` + `@dnd-kit/sortable`            |
+| Indexing      | `fractional-indexing` (order strings)            |
+| State & Cache | TanStack Query v5 + Optimistic UI Updates        |
+| Forms         | React Hook Form + Zod                            |
+| Animation     | Framer Motion                                    |
+| Database      | MongoDB Atlas via Mongoose 8                     |
+| Auth          | Auth.js v5 (NextAuth Credentials)                |
+| Passwords     | bcryptjs (cost 12)                               |
+| AI Engine     | Google Gemini via `@google/genai`                |
+| Charts        | Recharts                                         |
+| Testing       | Vitest (Unit) + Playwright (E2E)                 |
+| Quality       | ESLint + Prettier + Husky + Commitlint           |
+| Deployment    | Vercel (`sin1` / `bom1`)                         |
 
 ---
 
@@ -176,38 +150,35 @@ src/
 ### Prerequisites
 
 - Node.js 22+
-- pnpm 12+
-- MongoDB Atlas cluster (free tier works fine)
-- Google Gemini API key (optional for AI features)
+- pnpm 9+
+- MongoDB Atlas cluster
+- Google Gemini API key (optional for local testing; BYOK supported)
 
-### 1. Clone & Install
+### 1. Clone & Install Dependencies
 
 ```bash
 git clone https://github.com/dulsara30/Lockin.git
 cd Lockin
 pnpm install
-pnpm approve-builds --all
 ```
 
-### 2. Configure Environment
+### 2. Configure Environment Variables
 
 ```bash
 cp .env.example .env.local
 ```
 
-Edit `.env.local`:
+Populate `.env.local` with your credentials:
 
-| Variable              | Required | Description                                                           |
-| --------------------- | -------- | --------------------------------------------------------------------- |
-| `MONGODB_URI`         | ✅       | MongoDB Atlas connection string - **must point to `Lockin` database** |
-| `AUTH_SECRET`         | ✅       | Random 32+ byte secret for JWT signing                                |
-| `GEMINI_API_KEY`      | ✅       | Shared Gemini key (AI features, optional locally)                     |
-| `ENCRYPTION_KEY`      | ✅       | 32-byte hex key for AES-256-GCM BYOK encryption                       |
-| `GEMINI_MODEL`        | ✅       | Model name e.g. `gemini-2.0-flash`                                    |
-| `AI_DAILY_CAP_SHARED` | ✅       | Max AI calls/user/day on shared key (default `10`)                    |
-| `NEXTAUTH_URL`        | ⚠️       | Required for local development: `http://localhost:3000`               |
-
-> **Important:** The `MONGODB_URI` should point to your Atlas cluster. The code forces `dbName: 'Lockin'` so your data always lives in the `Lockin` database, not `test`.
+| Variable              | Required | Description                                                       |
+| --------------------- | -------- | ----------------------------------------------------------------- |
+| `MONGODB_URI`         | ✅       | MongoDB Atlas connection URI (database enforced as `Lockin`)      |
+| `AUTH_SECRET`         | ✅       | Secure 32+ byte string for JWT token encryption                   |
+| `GEMINI_API_KEY`      | ⚠️       | Shared Google Gemini API key for AI Brain Dump & Re-planning      |
+| `ENCRYPTION_KEY`      | ✅       | 32-byte hex key for encrypting user BYOK API keys (AES-256-GCM)   |
+| `GEMINI_MODEL`        | ✅       | Default model ID (e.g. `gemini-2.5-flash`)                        |
+| `AI_DAILY_CAP_SHARED` | ✅       | Max daily AI operations per user on shared key (default: `10`)    |
+| `NEXTAUTH_URL`        | ⚠️       | Base application URL (e.g. `http://localhost:3000` for local dev) |
 
 ### 3. Run Development Server
 
@@ -215,68 +186,51 @@ Edit `.env.local`:
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
+Navigate to [http://localhost:3000](http://localhost:3000).
 
-### 4. Verify Everything
+---
+
+## 🧪 Testing & Verification
+
+Run the comprehensive single-command verification suite:
 
 ```bash
-pnpm verify   # lint + typecheck + unit tests + build
+pnpm verify
+```
+
+This runs:
+
+1. `pnpm lint`: ESLint static analysis
+2. `pnpm typecheck`: Strict TypeScript typecheck (`tsc --noEmit`)
+3. `pnpm test`: Vitest unit tests for the planning engine, security, and schemas
+4. `pnpm build`: Next.js production build
+
+### E2E Testing (Playwright)
+
+```bash
+pnpm exec playwright test
 ```
 
 ---
 
-## 🧪 Testing
+## 🔒 Security Architecture
 
-```bash
-pnpm test            # Vitest unit tests (planning engine, auth, env, rate limiting)
-pnpm test --watch    # Watch mode
-```
-
-Unit tests cover the pure planning engine (`calculateMissionHealth`, `calculateDayCapacity`, `previewRollover`), auth schema validation, bcrypt hashing, env validation, and rate-limit logic.
-
-Playwright e2e tests run in Phase 5 (full signup → brain dump → runway → complete flow).
+- **Scoped Queries:** Every database query executes through the Data-Access Layer (`src/server/dal/`) and strictly requires `userId`. Queries by document ID alone are strictly rejected.
+- **Server-Side Validation:** All Server Actions validate inputs with Zod schemas before running business logic.
+- **Zero Raw HTML:** Markdown notes and text render strictly through sanitized markdown components.
+- **Rate Limiting:** Auth endpoints and AI operations are protected via MongoDB TTL index rate limiters.
+- **AES-256-GCM BYOK Encryption:** User-supplied Gemini keys are encrypted at rest with authenticated encryption.
+- **Git Commit Verification:** Husky `commit-msg` hooks enforce Conventional Commits and reject unauthorized agent signatures.
 
 ---
 
-## 🚀 Deployment (Vercel)
+## 🚀 Deployment
 
-1. Push branch, open PR → CI runs automatically
-2. Connect GitHub repo to Vercel
-3. Set **all env variables** from `.env.example` in Vercel dashboard
-4. Set function region to `sin1` (Singapore) or `bom1` (Mumbai) to co-locate with Atlas
-5. Deploy - Vercel auto-detects Next.js and sets the build command
-
-**Vercel settings:**
-
-- Build command: `pnpm build`
-- Install command: `pnpm install --frozen-lockfile && pnpm approve-builds --all`
-- Output directory: `.next`
-
----
-
-## 📜 Available Scripts
-
-| Script              | Description                                 |
-| ------------------- | ------------------------------------------- |
-| `pnpm dev`          | Start development server                    |
-| `pnpm build`        | Production build                            |
-| `pnpm start`        | Start production server                     |
-| `pnpm lint`         | Next.js ESLint check                        |
-| `pnpm typecheck`    | TypeScript strict type check                |
-| `pnpm test`         | Vitest unit tests                           |
-| `pnpm verify`       | All checks: lint + typecheck + test + build |
-| `pnpm format:write` | Prettier format all files                   |
-
----
-
-## 🔐 Security Notes
-
-- Signup/login endpoints rate-limited: max 5 attempts per 10 minutes per email
-- Generic error messages on auth failures to prevent enumeration
-- Passwords: bcryptjs cost 12, min 8 chars, email normalized to lowercase
-- BYOK Gemini API keys stored AES-256-GCM encrypted with `ENCRYPTION_KEY`
-- AI calls: max 10/day (shared key) or 100/day (own key), tracked in `aiUsage` collection
-- Committed secrets are rejected by the `commit-msg` hook - no `Co-authored-by`, `Generated with`, or AI signatures
+1. Push your branch and open a Pull Request.
+2. Connect your GitHub repository to Vercel.
+3. Add all production environment variables from `.env.example` in the Vercel dashboard.
+4. Set Node.js version to `22.x` and region close to your database (e.g., `sin1` or `bom1`).
+5. Deploy. Build and start commands are detected automatically.
 
 ---
 

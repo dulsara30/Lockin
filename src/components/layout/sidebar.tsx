@@ -18,6 +18,7 @@ import {
   Plus,
   Command as CommandIcon,
   Sparkles,
+  Compass,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -46,6 +47,7 @@ const mainNavItems: NavItem[] = [
   { title: 'Runway', href: '/runway', icon: Route },
   { title: 'Insights', href: '/insights', icon: BarChart2 },
   { title: 'Templates', href: '/templates', icon: LayoutTemplate },
+  { title: 'How It Works', href: '/how-it-works', icon: Compass },
 ];
 
 export function Sidebar() {
@@ -223,7 +225,6 @@ export function Sidebar() {
 
           {/* Mission list items with color dots */}
           <div className="space-y-1">
-            {/* Sample pinned mission dots for Phase 1 shell */}
             <div className={cn('px-2 py-1', isCollapsed && 'flex justify-center')}>
               <div className="flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-primary" />
