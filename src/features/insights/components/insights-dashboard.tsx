@@ -25,6 +25,7 @@ import {
   BarChart2,
   Layers,
   Filter,
+  AlertTriangle,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -119,6 +120,40 @@ export function InsightsDashboard({ initialData }: InsightsDashboardProps) {
           </Link>
         </div>
       </div>
+
+      {/* Schedule Drag Warning Banner */}
+      {data.failedDaysCount > 0 && (
+        <div className="rounded-2xl border border-danger/40 bg-danger/10 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-3 text-danger">
+            <div className="p-2 rounded-xl bg-danger/20 shrink-0">
+              <AlertTriangle className="h-5 w-5 text-danger" />
+            </div>
+            <div>
+              <strong className="text-sm font-bold block text-foreground">
+                Mission Schedule Drag Detected
+              </strong>
+              <p className="text-muted-foreground text-[11px] mt-0.5">
+                {data.failedDaysCount} day{data.failedDaysCount > 1 ? 's' : ''} exceeded the 24-hour
+                limit without completing planned tasks. This is dragging your overall milestone
+                completion.
+              </p>
+            </div>
+          </div>
+          <Link
+            href={
+              data.selectedMissionId ? `/runway?missionId=${data.selectedMissionId}` : '/runway'
+            }
+          >
+            <Button
+              size="sm"
+              className="bg-danger hover:bg-danger/90 text-white text-xs gap-1.5 shrink-0"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Re-plan Runway to Recover</span>
+            </Button>
+          </Link>
+        </div>
+      )}
 
       {/* Top Metric Hero Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

@@ -26,7 +26,11 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-export function BrainDumpView() {
+interface BrainDumpViewProps {
+  defaultHoursPerDay?: number;
+}
+
+export function BrainDumpView({ defaultHoursPerDay = 4 }: BrainDumpViewProps) {
   const searchParams = useSearchParams();
   const targetMissionId = searchParams.get('missionId') || undefined;
   const initialTab = searchParams.get('tab') === 'template' ? 'template' : 'ai';
@@ -36,7 +40,13 @@ export function BrainDumpView() {
   // Path A: AI State
   const [aiPrompt, setAiPrompt] = useState('');
   const [days, setDays] = useState(5);
-  const [hoursPerDay, setHoursPerDay] = useState(4);
+  const [hoursPerDay, setHoursPerDay] = useState(defaultHoursPerDay);
+
+  useEffect(() => {
+    if (defaultHoursPerDay) {
+      setHoursPerDay(defaultHoursPerDay);
+    }
+  }, [defaultHoursPerDay]);
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isListening, setIsListening] = useState(false);

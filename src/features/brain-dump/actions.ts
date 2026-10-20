@@ -14,7 +14,7 @@ import {
 } from '@/lib/templates/parser';
 import { brainDumpAiInputSchema, templateImportSchema, confirmPlanSchema } from './schemas';
 import { createMission, getMissionById, updateMission } from '@/server/dal/missions';
-import { createRunway } from '@/server/dal/runways';
+import { createRunway, getRunwayByMission, getRunwaysByMission } from '@/server/dal/runways';
 import { createStep, getStepsByMission } from '@/server/dal/steps';
 import { getTodayDashboardData } from '@/server/dal/today';
 import { generateKeyBetween } from 'fractional-indexing';
@@ -208,21 +208,48 @@ export async function replanMissionAction(missionId: string, hoursPerDay = 4) {
   const userId = session.user.id;
 
   try {
-    const steps = await getStepsByMission(userId, missionId);
+    const [steps, mission, activeRunway] = await Promise.all([
+      getStepsByMission(userId, missionId),
+      getMissionById(userId, missionId),
+      getRunwayByMission(userId, missionId),
+    ]);
+
     const incompleteSteps = steps.filter((s) => s.status !== 'done' && s.status !== 'skipped');
 
     if (incompleteSteps.length === 0) {
       return { success: false, error: 'No incomplete steps to re-plan.' };
     }
 
-    const remainingDays = Math.max(
-      2,
-      Math.ceil(incompleteSteps.reduce((acc, s) => acc + s.estimateMin, 0) / (hoursPerDay * 60))
-    );
+    // Feasibility analysis: can remaining work fit in remaining days?
+    const deadline =
+      activeRunway?.deadline || mission?.deadline || new Date(Date.now() + 7 * 86400000);
+    const now = new Date();
+    const msLeft = new Date(deadline).getTime() - now.getTime();
+    const daysLeft = Math.max(1, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
+
+    const totalRemainingMin = incompleteSteps.reduce((acc, s) => acc + s.estimateMin, 0);
+    const availableCapacityMin = daysLeft * hoursPerDay * 60;
+    const isFeasible = totalRemainingMin <= availableCapacityMin;
+
+    const extraMin = Math.max(0, totalRemainingMin - availableCapacityMin);
+    const extraDaysNeeded = Math.ceil(extraMin / (hoursPerDay * 60));
+    const extraHoursPerDay =
+      daysLeft > 0 ? Math.round((totalRemainingMin / 60 / daysLeft - hoursPerDay) * 10) / 10 : 0;
+
+    const feasibility = {
+      isFeasible,
+      daysLeft,
+      totalRemainingMin,
+      availableCapacityMin,
+      extraDaysNeeded,
+      extraHoursPerDay: Math.max(0, extraHoursPerDay),
+    };
+
+    const remainingDays = Math.max(2, Math.ceil(totalRemainingMin / (hoursPerDay * 60)));
 
     const replanned = await replanMissionWithGemini({
       userId,
-      missionTitle: 'Re-planned Pipeline',
+      missionTitle: mission?.title ? `${mission.title} Re-plan` : 'Re-planned Pipeline',
       remainingDays,
       hoursPerDay,
       steps: incompleteSteps.map((s) => ({
@@ -234,13 +261,75 @@ export async function replanMissionAction(missionId: string, hoursPerDay = 4) {
       })),
     });
 
-    return { success: true, plan: replanned };
+    return { success: true, plan: replanned, feasibility };
   } catch (error: unknown) {
     const err = error as { message?: string };
     return {
       success: false,
       error: `Re-planning failed: ${err.message || 'Unknown error'}`,
     };
+  }
+}
+
+export async function applyReplanAction(missionId: string, plan: ParsedPlan) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { success: false, error: 'Unauthorized. Please log in.' };
+  }
+  const userId = session.user.id;
+
+  try {
+    const existingRunways = await getRunwaysByMission(userId, missionId);
+    const nextVersion =
+      existingRunways.length > 0 ? Math.max(...existingRunways.map((r) => r.version || 1)) + 1 : 2;
+
+    const startDate = new Date();
+    const deadline = new Date(startDate.getTime() + plan.dayCount * 24 * 60 * 60 * 1000);
+
+    // Create NEW Runway version under this mission (preserving previous runway versions)
+    const newRunway = await createRunway(userId, {
+      missionId,
+      title: `${plan.title || 'Pipeline'} (v${nextVersion})`,
+      description: plan.description || 'AI Re-balanced runway',
+      dayCount: plan.dayCount,
+      startDate,
+      deadline,
+      version: nextVersion,
+      isOriginal: false,
+    });
+
+    const newRunwayId = newRunway._id.toString();
+
+    // Insert steps for the replanned runway
+    for (const day of plan.days) {
+      let previousKey: string | null = null;
+      for (const step of day.steps) {
+        const orderKey = generateKeyBetween(previousKey, null);
+        previousKey = orderKey;
+
+        await createStep(userId, {
+          missionId,
+          runwayId: newRunwayId,
+          dayIndex: day.dayIndex,
+          order: orderKey,
+          title: step.title,
+          notes: step.notes || '',
+          estimateMin: step.estimateMin,
+          status: 'todo',
+          checklist: step.checklist?.map((c) => ({ text: c.text, done: c.done })) || [],
+        });
+      }
+    }
+
+    revalidatePath('/runway');
+    revalidatePath('/missions');
+    revalidatePath('/today');
+    revalidatePath('/insights');
+
+    return { success: true, runwayId: newRunwayId, version: nextVersion };
+  } catch (error: unknown) {
+    const err = error as { message?: string };
+    return { success: false, error: err.message || 'Failed to apply re-plan' };
   }
 }
 

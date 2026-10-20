@@ -22,9 +22,14 @@ import { RunwayStepCard } from './runway-step-card';
 import { StepDrawer, StepData } from '@/features/steps/components/step-drawer';
 import { RolloverModal } from './rollover-modal';
 import { ReplanModal } from './replan-modal';
+import { DayDetailModal } from './day-detail-modal';
 import { calculateMissionHealth, MissionHealthResult } from '@/lib/planning';
 import { actionCreateStep, actionReorderStep, actionUpdateStep } from '@/features/missions/actions';
-import { actionDeleteRunway } from '@/features/runway/actions';
+import {
+  actionDeleteRunway,
+  actionStartDay,
+  actionSwitchActiveRunway,
+} from '@/features/runway/actions';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -74,6 +79,11 @@ export interface RunwayData {
   startDate?: string;
   deadline?: string;
   status?: string;
+  version?: number;
+  isOriginal?: boolean;
+  isActive?: boolean;
+  dayStartTimes?: Record<string, string>;
+  dayFailedIndices?: number[];
 }
 
 interface RunwayPipelineProps {
@@ -82,6 +92,7 @@ interface RunwayPipelineProps {
   runwaysList?: RunwayData[];
   initialSteps: StepData[];
   missionsList?: MissionData[];
+  dailyCapacityMin?: number;
 }
 
 export function RunwayPipeline({
@@ -90,11 +101,19 @@ export function RunwayPipeline({
   runwaysList = [],
   initialSteps,
   missionsList = [],
+  dailyCapacityMin = 240,
 }: RunwayPipelineProps) {
   const router = useRouter();
   const [steps, setSteps] = React.useState<StepData[]>(initialSteps);
   const [activeStep, setActiveStep] = React.useState<StepData | null>(null);
   const [selectedStep, setSelectedStep] = React.useState<StepData | null>(null);
+  const [selectedDayDetailIndex, setSelectedDayDetailIndex] = React.useState<number | null>(null);
+  const [dayStartTimes, setDayStartTimes] = React.useState<Record<string, string>>(
+    (runway?.dayStartTimes as Record<string, string>) || {}
+  );
+  const [failedIndices, setFailedIndices] = React.useState<number[]>(
+    runway?.dayFailedIndices || []
+  );
 
   // Modals state
   const [isRolloverOpen, setIsRolloverOpen] = React.useState(false);
@@ -142,7 +161,7 @@ export function RunwayPipeline({
     steps,
     dayCount: effectiveDayCount,
     currentDayIndex,
-    dailyCapacityMin: 240,
+    dailyCapacityMin,
   });
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -344,6 +363,43 @@ export function RunwayPipeline({
     }
   };
 
+  const handleStartDay = async (dayIndex: number) => {
+    if (!runway?._id) return;
+    const nowIso = new Date().toISOString();
+    setDayStartTimes((prev) => ({ ...prev, [dayIndex]: nowIso }));
+
+    const res = await actionStartDay(runway._id, dayIndex);
+    if (!res.success) {
+      toast.error('Failed to record day start time');
+    }
+  };
+
+  const handleUpdateStepStatusFromDay = async (
+    stepId: string,
+    newStatus: 'todo' | 'doing' | 'done'
+  ) => {
+    setSteps((prev) => prev.map((s) => (s._id === stepId ? { ...s, status: newStatus } : s)));
+    const res = await actionUpdateStep(stepId, { status: newStatus });
+    if (!res.success) {
+      toast.error('Failed to sync status change');
+    }
+  };
+
+  const handleSwitchVersion = async (targetRunwayId: string) => {
+    if (targetRunwayId === runway?._id) return;
+    try {
+      const res = await actionSwitchActiveRunway(mission._id, targetRunwayId);
+      if (res.success) {
+        toast.success('Switched runway version');
+        router.push(`/runway?missionId=${mission._id}&runwayId=${targetRunwayId}`);
+      } else {
+        toast.error('Failed to switch version');
+      }
+    } catch {
+      toast.error('Error switching version');
+    }
+  };
+
   const getHealthBadge = (h: MissionHealthResult['health']) => {
     switch (h) {
       case 'On track':
@@ -413,6 +469,28 @@ export function RunwayPipeline({
               ))}
             </select>
           </div>
+
+          {/* Runway Version Switcher */}
+          {runwaysList.length > 1 && (
+            <div className="flex items-center gap-1.5 pl-2 border-l border-border/80">
+              <Route className="h-3.5 w-3.5 text-cyan shrink-0" />
+              <span className="text-xs font-semibold text-muted-foreground hidden sm:inline">
+                Runway:
+              </span>
+              <select
+                value={runway?._id}
+                onChange={(e) => handleSwitchVersion(e.target.value)}
+                className="bg-background border border-border rounded-xl px-2.5 py-1 text-xs text-foreground font-semibold focus:outline-none focus:border-cyan cursor-pointer"
+              >
+                {runwaysList.map((r, i) => (
+                  <option key={r._id} value={r._id}>
+                    {r.isOriginal ? 'v1 (Original)' : `v${r.version || i + 1} (Replan)`}
+                    {r.isActive ? ' • Active' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -535,6 +613,8 @@ export function RunwayPipeline({
               const daySteps = steps
                 .filter((s) => s.dayIndex === index)
                 .sort((a, b) => a.order.localeCompare(b.order));
+              const dayStart = dayStartTimes[String(index)] || dayStartTimes[index] || null;
+              const isDayFailed = failedIndices.includes(index);
 
               return (
                 <RunwayDayColumn
@@ -542,10 +622,14 @@ export function RunwayPipeline({
                   dayIndex={index}
                   steps={daySteps}
                   isToday={index === currentDayIndex}
-                  dailyCapacityMin={240}
+                  dailyCapacityMin={dailyCapacityMin}
+                  dayStartTime={dayStart}
+                  isFailed={isDayFailed}
                   onSelectStep={(s) => setSelectedStep(s)}
                   onAddStepInline={handleAddStepInline}
                   onQuickToggleStatus={handleQuickToggleStatus}
+                  onOpenDayDetail={(d) => setSelectedDayDetailIndex(d)}
+                  onStartDay={handleStartDay}
                 />
               );
             })}
@@ -727,6 +811,7 @@ export function RunwayPipeline({
         currentDayIndex={currentDayIndex}
         missionId={mission._id}
         dayCount={effectiveDayCount}
+        dailyCapacityMin={dailyCapacityMin}
         onRolloverApplied={() => {
           window.location.reload();
         }}
@@ -738,7 +823,33 @@ export function RunwayPipeline({
         onClose={() => setIsReplanOpen(false)}
         missionId={mission._id}
         missionTitle={mission.title}
+        dailyCapacityMin={dailyCapacityMin}
+        currentRunwayId={runway?._id}
+        onReplanSaved={() => {
+          window.location.reload();
+        }}
       />
+
+      {/* Day Mini-Pipeline Focus Modal */}
+      {selectedDayDetailIndex !== null && (
+        <DayDetailModal
+          isOpen={selectedDayDetailIndex !== null}
+          onClose={() => setSelectedDayDetailIndex(null)}
+          dayIndex={selectedDayDetailIndex}
+          steps={steps.filter((s) => s.dayIndex === selectedDayDetailIndex)}
+          dailyCapacityMin={dailyCapacityMin}
+          dayStartTime={
+            dayStartTimes[String(selectedDayDetailIndex)] ||
+            dayStartTimes[selectedDayDetailIndex] ||
+            null
+          }
+          isFailed={failedIndices.includes(selectedDayDetailIndex)}
+          onStartDay={handleStartDay}
+          onUpdateStepStatus={handleUpdateStepStatusFromDay}
+          onSelectStep={(s) => setSelectedStep(s)}
+          onOpenReplan={() => setIsReplanConfirmOpen(true)}
+        />
+      )}
     </div>
   );
 }

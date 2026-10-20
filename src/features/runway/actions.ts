@@ -9,6 +9,9 @@ import {
   updateRunway,
   deleteRunway,
   getAllRunways,
+  startDay,
+  markDayFailed,
+  switchActiveRunway,
 } from '@/server/dal/runways';
 import { z } from 'zod';
 
@@ -77,6 +80,42 @@ export async function actionDeleteRunway(runwayId: string) {
     revalidatePath('/missions');
     revalidatePath('/today');
     return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Server error' };
+  }
+}
+
+export async function actionStartDay(runwayId: string, dayIndex: number) {
+  try {
+    const userId = await getRequiredUserId();
+    const updated = await startDay(userId, runwayId, dayIndex);
+    if (!updated) return { success: false, error: 'Runway not found' };
+    revalidatePath('/runway');
+    return { success: true, data: JSON.parse(JSON.stringify(updated)) };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Server error' };
+  }
+}
+
+export async function actionMarkDayFailed(runwayId: string, dayIndex: number) {
+  try {
+    const userId = await getRequiredUserId();
+    const updated = await markDayFailed(userId, runwayId, dayIndex);
+    if (!updated) return { success: false, error: 'Runway not found' };
+    revalidatePath('/runway');
+    return { success: true, data: JSON.parse(JSON.stringify(updated)) };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Server error' };
+  }
+}
+
+export async function actionSwitchActiveRunway(missionId: string, runwayId: string) {
+  try {
+    const userId = await getRequiredUserId();
+    const updated = await switchActiveRunway(userId, missionId, runwayId);
+    if (!updated) return { success: false, error: 'Runway not found' };
+    revalidatePath('/runway');
+    return { success: true, data: JSON.parse(JSON.stringify(updated)) };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Server error' };
   }

@@ -2,8 +2,9 @@ import { Metadata } from 'next';
 import { auth } from '@/lib/auth';
 import { actionGetMissions } from '@/features/missions/actions';
 import { getMissionById } from '@/server/dal/missions';
-import { getRunwayByMission } from '@/server/dal/runways';
+import { getRunwayByMission, getRunwaysByMission, getRunwayById } from '@/server/dal/runways';
 import { getStepsByMission } from '@/server/dal/steps';
+import { getUserSettings } from '@/server/dal/settings';
 import { RunwayPipeline } from '@/features/runway/components/runway-pipeline';
 import { RunwayMissionSelector } from '@/features/runway/components/runway-mission-selector';
 import { Button } from '@/components/ui/button';
@@ -24,8 +25,9 @@ export default async function RunwayPage({ searchParams }: RunwayPageProps) {
   if (!userId) return null;
 
   const resolvedParams = await searchParams;
-  const missionsRes = await actionGetMissions();
+  const [missionsRes, settings] = await Promise.all([actionGetMissions(), getUserSettings(userId)]);
   const missions = missionsRes.success && missionsRes.data ? missionsRes.data : [];
+  const dailyCapacityMin = (settings.workHoursPerDay || 8) * 60;
 
   // Case 1: No mission selected -> Show Missions Card View with KPIs
   if (!resolvedParams.missionId) {
@@ -38,8 +40,17 @@ export default async function RunwayPage({ searchParams }: RunwayPageProps) {
     return <RunwayMissionSelector missions={missions} />;
   }
 
-  // Get runway for this mission (1 mission = 1 runway)
-  const runway = await getRunwayByMission(userId, activeMission._id.toString());
+  // Get all runways/versions for this mission
+  const runwaysList = await getRunwaysByMission(userId, activeMission._id.toString());
+
+  // Determine current active or selected runway
+  let runway = null;
+  if (resolvedParams.runwayId) {
+    runway = await getRunwayById(userId, resolvedParams.runwayId);
+  }
+  if (!runway) {
+    runway = runwaysList.find((r) => r.isActive) || runwaysList[runwaysList.length - 1] || null;
+  }
 
   // Case 3: Selected mission has no runway yet
   if (!runway) {
@@ -97,9 +108,10 @@ export default async function RunwayPage({ searchParams }: RunwayPageProps) {
       <RunwayPipeline
         mission={JSON.parse(JSON.stringify(activeMission))}
         runway={JSON.parse(JSON.stringify(runway))}
-        runwaysList={[JSON.parse(JSON.stringify(runway))]}
+        runwaysList={JSON.parse(JSON.stringify(runwaysList))}
         initialSteps={JSON.parse(JSON.stringify(steps))}
         missionsList={JSON.parse(JSON.stringify(missions))}
+        dailyCapacityMin={dailyCapacityMin}
       />
     </div>
   );

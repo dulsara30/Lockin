@@ -1,5 +1,6 @@
 import { connectDB } from '@/lib/db';
 import { Mission } from '@/server/models/Mission';
+import { Runway } from '@/server/models/Runway';
 import { Step } from '@/server/models/Step';
 import { Activity } from '@/server/models/Activity';
 
@@ -39,6 +40,8 @@ export interface InsightsData {
   totalMissions: number;
   activeMissions: number;
   completedMissions: number;
+  failedDaysCount: number;
+  isDraggingSchedule: boolean;
   selectedMissionId?: string;
   missionsList: Array<{ _id: string; title: string; color: string }>;
 }
@@ -47,8 +50,11 @@ export async function getInsightsData(userId: string, missionId?: string): Promi
   if (!userId) throw new Error('Security Error: userId is required');
   await connectDB();
 
-  const [missions, allSteps, allActivities] = await Promise.all([
+  const [missions, runways, allSteps, allActivities] = await Promise.all([
     Mission.find({ userId }).sort({ deadline: 1 }).lean().exec(),
+    Runway.find({ userId, status: { $ne: 'archived' } })
+      .lean()
+      .exec(),
     Step.find({ userId }).lean().exec(),
     Activity.find({ userId }).sort({ at: 1 }).lean().exec(),
   ]);
@@ -61,6 +67,36 @@ export async function getInsightsData(userId: string, missionId?: string): Promi
   const filteredActivities = activeMission
     ? allActivities.filter((a) => a.missionId?.toString() === missionId)
     : allActivities;
+  const filteredRunways = activeMission
+    ? runways.filter((r) => r.missionId.toString() === missionId)
+    : runways;
+
+  let failedDaysCount = 0;
+  for (const r of filteredRunways) {
+    failedDaysCount += (r.dayFailedIndices || []).length;
+    if (r.dayStartTimes) {
+      const startTimes =
+        r.dayStartTimes instanceof Map
+          ? Object.fromEntries(r.dayStartTimes)
+          : (r.dayStartTimes as Record<string, Date>);
+      for (const [dayIdxStr, startTime] of Object.entries(startTimes)) {
+        const dIdx = parseInt(dayIdxStr, 10);
+        if (!(r.dayFailedIndices || []).includes(dIdx)) {
+          const elapsed = Date.now() - new Date(startTime as string | number | Date).getTime();
+          if (elapsed > 24 * 60 * 60 * 1000) {
+            const daySteps = filteredSteps.filter(
+              (s) => s.runwayId?.toString() === r._id.toString() && s.dayIndex === dIdx
+            );
+            if (daySteps.some((s) => s.status !== 'done')) {
+              failedDaysCount += 1;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const isDraggingSchedule = failedDaysCount > 0;
 
   const totalSteps = filteredSteps.length;
   const completedSteps = filteredSteps.filter((s) => s.status === 'done').length;
@@ -197,6 +233,8 @@ export async function getInsightsData(userId: string, missionId?: string): Promi
     totalMissions: missions.length,
     activeMissions,
     completedMissions,
+    failedDaysCount,
+    isDraggingSchedule,
     selectedMissionId: activeMission ? activeMission._id.toString() : undefined,
     missionsList: missions.map((m) => ({
       _id: m._id.toString(),

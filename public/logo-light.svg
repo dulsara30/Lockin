@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 72" width="560" height="144">
+  <defs>
+    <linearGradient id="g-light" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7C5CFF"/>
+      <stop offset="1" stop-color="#0284C7"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(4 4)">
+    <rect width="64" height="64" rx="16" fill="url(#g-light)"/>
+    <path d="M22 15 V43 H43" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="44" cy="22" r="6" fill="#C6FF3D"/>
+  </g>
+  <text x="84" y="50" font-family="Inter, 'Segoe UI', Arial, sans-serif" font-size="44" font-weight="800" letter-spacing="-1.5" fill="#12121A">lock<tspan fill="#0284C7">in</tspan></text>
+</svg>

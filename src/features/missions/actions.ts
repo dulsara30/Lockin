@@ -133,6 +133,7 @@ export async function actionGetMissions() {
       return {
         ...m,
         runwayCount: mRunways.length,
+        hasRunway: mRunways.length > 0,
         stepCount: mSteps.length,
         completedStepCount: mCompleted.length,
       };

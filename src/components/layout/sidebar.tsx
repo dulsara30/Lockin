@@ -99,14 +99,24 @@ export function Sidebar() {
                 priority
               />
             ) : (
-              <Image
-                src="/logo.svg"
-                alt="Lockin"
-                width={124}
-                height={32}
-                className="h-8 w-auto"
-                priority
-              />
+              <>
+                <Image
+                  src="/logo.svg"
+                  alt="Lockin"
+                  width={124}
+                  height={32}
+                  className="h-8 w-auto hidden dark:block"
+                  priority
+                />
+                <Image
+                  src="/logo-light.svg"
+                  alt="Lockin"
+                  width={124}
+                  height={32}
+                  className="h-8 w-auto block dark:hidden"
+                  priority
+                />
+              </>
             )}
           </Link>
           {!isCollapsed && (
