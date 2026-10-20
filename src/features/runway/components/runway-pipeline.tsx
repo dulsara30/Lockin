@@ -23,7 +23,19 @@ import { ReplanModal } from './replan-modal';
 import { calculateMissionHealth, MissionHealthResult } from '@/lib/planning';
 import { actionCreateStep, actionReorderStep, actionUpdateStep } from '@/features/missions/actions';
 import { Button } from '@/components/ui/button';
-import { RotateCw, Plus, Sparkles, Route, ChevronDown, Info, Calendar } from 'lucide-react';
+import {
+  RotateCw,
+  Plus,
+  Sparkles,
+  Route,
+  ChevronDown,
+  Info,
+  Calendar,
+  Download,
+  LayoutTemplate,
+} from 'lucide-react';
+import { saveMissionAsTemplateAction } from '@/features/templates/actions';
+import { exportMissionMarkdownAction } from '@/features/settings/actions';
 import { toast } from 'sonner';
 
 export interface MissionData {
@@ -221,6 +233,39 @@ export function RunwayPipeline({
     }
   };
 
+  const handleSaveAsTemplate = async () => {
+    try {
+      const res = await saveMissionAsTemplateAction(mission._id, mission.title);
+      if (res.success) {
+        toast.success('Mission saved as template!');
+      } else {
+        toast.error(res.error || 'Failed to save template');
+      }
+    } catch {
+      toast.error('Error saving template');
+    }
+  };
+
+  const handleExportMarkdown = async () => {
+    try {
+      const res = await exportMissionMarkdownAction(mission._id);
+      if (res.success && res.markdown && res.filename) {
+        const blob = new Blob([res.markdown], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = res.filename;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success('Mission exported as Markdown.');
+      } else {
+        toast.error(res.error || 'Export failed');
+      }
+    } catch {
+      toast.error('Error exporting markdown');
+    }
+  };
+
   const handleQuickToggleStatus = async (stepId: string, currentStatus: StepData['status']) => {
     const newStatus = currentStatus === 'done' ? 'todo' : 'done';
     setSteps((prev) => prev.map((s) => (s._id === stepId ? { ...s, status: newStatus } : s)));
@@ -301,6 +346,30 @@ export function RunwayPipeline({
           >
             <Sparkles className="h-3.5 w-3.5 text-warning" />
             <span>Re-plan</span>
+          </Button>
+
+          {/* Save Template */}
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleSaveAsTemplate}
+            className="text-xs gap-1.5 bg-surface border-border hover:bg-surface-hover"
+            title="Save as reusable blueprint"
+          >
+            <LayoutTemplate className="h-3.5 w-3.5 text-info" />
+            <span className="hidden sm:inline">Template</span>
+          </Button>
+
+          {/* Export Markdown */}
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleExportMarkdown}
+            className="text-xs gap-1.5 bg-surface border-border hover:bg-surface-hover"
+            title="Download as Markdown file"
+          >
+            <Download className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="hidden sm:inline">Export</span>
           </Button>
 
           {/* Roll Over Trigger */}
