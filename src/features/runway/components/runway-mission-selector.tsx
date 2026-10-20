@@ -222,8 +222,11 @@ export function RunwayMissionSelector({ missions }: RunwayMissionSelectorProps) 
 
                 {/* Footer Action */}
                 <div className="pt-4 mt-4 border-t border-border/50 flex items-center justify-between">
-                  <span className="text-[11px] font-mono text-muted-foreground">
-                    Due {new Date(mission.deadline).toLocaleDateString()}
+                  <span
+                    suppressHydrationWarning
+                    className="text-[11px] font-mono text-muted-foreground"
+                  >
+                    Due {new Date(mission.deadline).toISOString().split('T')[0]}
                   </span>
 
                   {hasRunway ? (

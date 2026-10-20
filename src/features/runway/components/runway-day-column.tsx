@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Plus, Clock, Sparkles, Play, AlertTriangle, Maximize2 } from 'lucide-react';
@@ -12,6 +13,7 @@ import { Input } from '@/components/ui/input';
 
 interface RunwayDayColumnProps {
   dayIndex: number;
+  missionId?: string;
   steps: StepData[];
   isToday: boolean;
   dailyCapacityMin?: number;
@@ -20,12 +22,12 @@ interface RunwayDayColumnProps {
   onSelectStep: (step: StepData) => void;
   onAddStepInline: (dayIndex: number, title: string) => void;
   onQuickToggleStatus?: (stepId: string, currentStatus: StepData['status']) => void;
-  onOpenDayDetail?: (dayIndex: number) => void;
   onStartDay?: (dayIndex: number) => void;
 }
 
 export function RunwayDayColumn({
   dayIndex,
+  missionId,
   steps,
   isToday,
   dailyCapacityMin = 240,
@@ -34,7 +36,6 @@ export function RunwayDayColumn({
   onSelectStep,
   onAddStepInline,
   onQuickToggleStatus,
-  onOpenDayDetail,
   onStartDay,
 }: RunwayDayColumnProps) {
   const [isAdding, setIsAdding] = React.useState(false);
@@ -81,6 +82,20 @@ export function RunwayDayColumn({
     return Date.now() - startMs > 24 * 60 * 60 * 1000;
   }, [isFinished, isFailed, dayStartTime]);
 
+  // Hours left to end day
+  const hoursLeftDisplay = React.useMemo(() => {
+    if (!dayStartTime || isFinished) return null;
+    const startMs = new Date(dayStartTime).getTime();
+    const elapsed = Date.now() - startMs;
+    const leftMs = 24 * 60 * 60 * 1000 - elapsed;
+    if (leftMs <= 0) return 'Overdue';
+    const hours = Math.floor(leftMs / (1000 * 60 * 60));
+    const mins = Math.floor((leftMs % (1000 * 60 * 60)) / (1000 * 60));
+    return `${hours}h ${mins}m left`;
+  }, [dayStartTime, isFinished]);
+
+  const dayUrl = missionId ? `/runway/day?missionId=${missionId}&dayIndex=${dayIndex}` : '#';
+
   return (
     <div
       ref={setNodeRef}
@@ -110,10 +125,10 @@ export function RunwayDayColumn({
       {/* Column Header */}
       <div className="pb-3 border-b border-border/60 space-y-2">
         <div className="flex items-center justify-between">
-          <div
-            onClick={() => onOpenDayDetail?.(dayIndex)}
+          <Link
+            href={dayUrl}
             className="flex items-center gap-1.5 cursor-pointer group"
-            title="Click to open mini day pipeline"
+            title="Click to open dedicated day focus pipeline"
           >
             <span
               className={cn(
@@ -123,7 +138,7 @@ export function RunwayDayColumn({
             >
               Day {dayIndex + 1}
             </span>
-            <Maximize2 className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+            <Maximize2 className="h-3 w-3 text-muted-foreground opacity-60 group-hover:opacity-100 group-hover:text-primary transition-all" />
 
             {isOverdue && (
               <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.2 rounded bg-danger/20 text-danger border border-danger/30 flex items-center gap-0.5">
@@ -141,20 +156,35 @@ export function RunwayDayColumn({
                 Done
               </span>
             )}
-          </div>
+          </Link>
 
           <div className="flex items-center gap-1.5">
             {!dayStartTime && onStartDay && !isFinished && (
               <button
                 type="button"
                 onClick={() => onStartDay(dayIndex)}
-                className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 flex items-center gap-1 transition-colors"
-                title="Start 24-hour timer for this day"
+                className="text-[10px] font-semibold px-2 py-0.5 rounded bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 flex items-center gap-1 transition-colors"
+                title="Start 24-hour countdown for this day"
               >
                 <Play className="h-2.5 w-2.5 fill-current" />
-                <span>Start</span>
+                <span>Start Day</span>
               </button>
             )}
+
+            {hoursLeftDisplay && !isFinished && (
+              <span
+                className={cn(
+                  'text-[10px] font-mono px-1.5 py-0.5 rounded font-semibold border',
+                  isOverdue
+                    ? 'bg-danger/15 text-danger border-danger/30'
+                    : 'bg-primary/10 text-primary border-primary/25'
+                )}
+                title="Remaining time in 24h window"
+              >
+                {hoursLeftDisplay}
+              </span>
+            )}
+
             <span className="text-[11px] font-mono text-muted-foreground">
               {steps.length} {steps.length === 1 ? 'task' : 'tasks'}
             </span>

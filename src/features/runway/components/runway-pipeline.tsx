@@ -22,7 +22,7 @@ import { RunwayStepCard } from './runway-step-card';
 import { StepDrawer, StepData } from '@/features/steps/components/step-drawer';
 import { RolloverModal } from './rollover-modal';
 import { ReplanModal } from './replan-modal';
-import { DayDetailModal } from './day-detail-modal';
+import { ConfirmStartDayModal } from './confirm-start-day-modal';
 import { calculateMissionHealth, MissionHealthResult } from '@/lib/planning';
 import { actionCreateStep, actionReorderStep, actionUpdateStep } from '@/features/missions/actions';
 import {
@@ -107,7 +107,7 @@ export function RunwayPipeline({
   const [steps, setSteps] = React.useState<StepData[]>(initialSteps);
   const [activeStep, setActiveStep] = React.useState<StepData | null>(null);
   const [selectedStep, setSelectedStep] = React.useState<StepData | null>(null);
-  const [selectedDayDetailIndex, setSelectedDayDetailIndex] = React.useState<number | null>(null);
+  const [confirmStartDayIndex, setConfirmStartDayIndex] = React.useState<number | null>(null);
   const [dayStartTimes, setDayStartTimes] = React.useState<Record<string, string>>(
     (runway?.dayStartTimes as Record<string, string>) || {}
   );
@@ -363,25 +363,16 @@ export function RunwayPipeline({
     }
   };
 
-  const handleStartDay = async (dayIndex: number) => {
+  const handleConfirmStartDay = async (dayIndex: number) => {
     if (!runway?._id) return;
     const nowIso = new Date().toISOString();
     setDayStartTimes((prev) => ({ ...prev, [dayIndex]: nowIso }));
 
     const res = await actionStartDay(runway._id, dayIndex);
-    if (!res.success) {
-      toast.error('Failed to record day start time');
-    }
-  };
-
-  const handleUpdateStepStatusFromDay = async (
-    stepId: string,
-    newStatus: 'todo' | 'doing' | 'done'
-  ) => {
-    setSteps((prev) => prev.map((s) => (s._id === stepId ? { ...s, status: newStatus } : s)));
-    const res = await actionUpdateStep(stepId, { status: newStatus });
-    if (!res.success) {
-      toast.error('Failed to sync status change');
+    if (res.success) {
+      toast.success(`Day ${dayIndex + 1} started! 24-hour completion clock active.`);
+    } else {
+      toast.error('Failed to start day clock.');
     }
   };
 
@@ -620,6 +611,7 @@ export function RunwayPipeline({
                 <RunwayDayColumn
                   key={index}
                   dayIndex={index}
+                  missionId={mission._id}
                   steps={daySteps}
                   isToday={index === currentDayIndex}
                   dailyCapacityMin={dailyCapacityMin}
@@ -628,8 +620,7 @@ export function RunwayPipeline({
                   onSelectStep={(s) => setSelectedStep(s)}
                   onAddStepInline={handleAddStepInline}
                   onQuickToggleStatus={handleQuickToggleStatus}
-                  onOpenDayDetail={(d) => setSelectedDayDetailIndex(d)}
-                  onStartDay={handleStartDay}
+                  onStartDay={(d) => setConfirmStartDayIndex(d)}
                 />
               );
             })}
@@ -830,24 +821,14 @@ export function RunwayPipeline({
         }}
       />
 
-      {/* Day Mini-Pipeline Focus Modal */}
-      {selectedDayDetailIndex !== null && (
-        <DayDetailModal
-          isOpen={selectedDayDetailIndex !== null}
-          onClose={() => setSelectedDayDetailIndex(null)}
-          dayIndex={selectedDayDetailIndex}
-          steps={steps.filter((s) => s.dayIndex === selectedDayDetailIndex)}
-          dailyCapacityMin={dailyCapacityMin}
-          dayStartTime={
-            dayStartTimes[String(selectedDayDetailIndex)] ||
-            dayStartTimes[selectedDayDetailIndex] ||
-            null
-          }
-          isFailed={failedIndices.includes(selectedDayDetailIndex)}
-          onStartDay={handleStartDay}
-          onUpdateStepStatus={handleUpdateStepStatusFromDay}
-          onSelectStep={(s) => setSelectedStep(s)}
-          onOpenReplan={() => setIsReplanConfirmOpen(true)}
+      {/* Start Day Confirmation Modal */}
+      {confirmStartDayIndex !== null && (
+        <ConfirmStartDayModal
+          isOpen={confirmStartDayIndex !== null}
+          onClose={() => setConfirmStartDayIndex(null)}
+          dayIndex={confirmStartDayIndex}
+          missionTitle={mission.title}
+          onConfirm={handleConfirmStartDay}
         />
       )}
     </div>

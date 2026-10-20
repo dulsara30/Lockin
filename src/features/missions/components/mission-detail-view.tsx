@@ -443,8 +443,11 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
                 {mission.priority}
               </span>
             </div>
-            <span className="text-[10px] text-muted-foreground mt-0.5 block">
-              Due {new Date(mission.deadline).toLocaleDateString()}
+            <span
+              suppressHydrationWarning
+              className="text-[10px] text-muted-foreground mt-0.5 block"
+            >
+              Due {new Date(mission.deadline).toISOString().split('T')[0]}
             </span>
           </div>
         </div>
