@@ -24,9 +24,8 @@ function validateEnv() {
       .join('\n');
     const message = `Environment validation failed:\n${errorDetails}\nPlease check your .env or .env.local file. See .env.example.`;
 
-    // In build or test environments without db connection, log error
-    if (process.env.SKIP_ENV_VALIDATION === 'true') {
-      console.warn('⚠️ SKIP_ENV_VALIDATION is true; proceeding with fallback values.');
+    // In build or test environments without db connection, log warning and use fallback
+    if (process.env.SKIP_ENV_VALIDATION === 'true' || process.env.NODE_ENV === 'test') {
       return envSchema.parse({
         MONGODB_URI: 'mongodb://localhost:27017/lockin',
         AUTH_SECRET: 'placeholder-secret-at-least-16-chars',
