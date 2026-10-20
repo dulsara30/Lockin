@@ -72,13 +72,13 @@
   textarea,
   input,
   select {
-    background-color: #14141f;
-    color: #f4f4fa;
-    border-color: #262637;
+    background-color: var(--surface);
+    color: var(--foreground);
+    border-color: var(--border);
   }
   textarea::placeholder,
   input::placeholder {
-    color: #9a9ab5;
+    color: var(--muted-foreground);
     opacity: 0.7;
   }
   ::selection {

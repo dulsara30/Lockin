@@ -33,7 +33,7 @@ export function TodayView() {
       </div>
 
       {/* Hero Next Up Card */}
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-surface to-[#10101C] p-6 shadow-xl">
+      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-surface to-surface-hover/50 p-6 shadow-xl">
         <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div className="space-y-2">

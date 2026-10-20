@@ -15,6 +15,10 @@ import {
   ExternalLink,
   Target,
   BarChart2,
+  Edit3,
+  FileCode,
+  X,
+  Save,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,12 +49,28 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
   const [newRunwayDays, setNewRunwayDays] = React.useState(5);
   const [isCreatingRunway, setIsCreatingRunway] = React.useState(false);
 
+  // Edit Mission State
+  const [isEditingMission, setIsEditingMission] = React.useState(false);
+  const [editTitle, setEditTitle] = React.useState('');
+  const [editDescription, setEditDescription] = React.useState('');
+  const [editPriority, setEditPriority] = React.useState<'low' | 'medium' | 'high'>('medium');
+  const [editDeadline, setEditDeadline] = React.useState('');
+  const [editColor, setEditColor] = React.useState('#7C5CFF');
+  const [isSavingMission, setIsSavingMission] = React.useState(false);
+
   const loadData = React.useCallback(async () => {
     setIsLoading(true);
     const res = await actionGetMissionDetails(missionId);
     if (res.success && res.data) {
       setData(res.data);
       setNewRunwayTitle((prev) => prev || `${res.data.mission.title} Sprint`);
+      setEditTitle(res.data.mission.title);
+      setEditDescription(res.data.mission.description || '');
+      setEditPriority(res.data.mission.priority || 'medium');
+      setEditColor(res.data.mission.color || '#7C5CFF');
+      if (res.data.mission.deadline) {
+        setEditDeadline(new Date(res.data.mission.deadline).toISOString().split('T')[0]);
+      }
     } else {
       toast.error(res.error || 'Failed to load mission');
     }
@@ -72,6 +92,32 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
       );
     } else {
       toast.error('Failed to update status');
+    }
+  };
+
+  const handleSaveMissionEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editTitle.trim()) {
+      toast.error('Title is required');
+      return;
+    }
+
+    setIsSavingMission(true);
+    const res = await actionUpdateMission(missionId, {
+      title: editTitle.trim(),
+      description: editDescription.trim(),
+      priority: editPriority,
+      color: editColor,
+      deadline: editDeadline ? new Date(editDeadline) : undefined,
+    });
+    setIsSavingMission(false);
+
+    if (res.success && res.data) {
+      toast.success('Mission updated successfully');
+      setIsEditingMission(false);
+      setData((prev) => (prev ? { ...prev, mission: { ...prev.mission, ...res.data } } : prev));
+    } else {
+      toast.error(res.error || 'Failed to update mission');
     }
   };
 
@@ -110,19 +156,18 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
       toast.success('Runway deleted');
       loadData();
     } else {
-      toast.error('Failed to delete runway');
+      toast.error(res.error || 'Failed to delete runway');
     }
   };
 
   const handleDeleteMission = async () => {
-    if (!confirm('Delete this entire mission and all of its runways? This cannot be undone.'))
-      return;
+    if (!confirm('Delete this entire mission and its runway? This cannot be undone.')) return;
     const res = await actionDeleteMission(missionId);
     if (res.success) {
-      toast.success('Mission deleted');
+      toast.success('Mission and runway deleted');
       router.push('/missions');
     } else {
-      toast.error('Failed to delete mission');
+      toast.error(res.error || 'Failed to delete mission');
     }
   };
 
@@ -136,7 +181,7 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
     );
   }
 
-  const { mission, runways, steps, insights } = data;
+  const { mission, runways, steps } = data;
   const completedSteps = steps.filter((s) => s.status === 'done').length;
   const completionPct = steps.length > 0 ? Math.round((completedSteps / steps.length) * 100) : 0;
   const totalPlannedHours =
@@ -159,7 +204,7 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
                 style={{ backgroundColor: mission.color || '#7C5CFF' }}
               />
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Mission Details & Runways
+                Mission Details & Execution Runway
               </span>
             </div>
             <h1 className="text-2xl font-extrabold tracking-tight text-foreground mt-0.5">
@@ -168,13 +213,32 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsEditingMission((prev) => !prev)}
+            className="text-xs gap-1.5 border-border bg-surface text-foreground hover:bg-surface-hover"
+          >
+            {isEditingMission ? (
+              <X className="h-3.5 w-3.5" />
+            ) : (
+              <Edit3 className="h-3.5 w-3.5 text-primary" />
+            )}
+            <span>{isEditingMission ? 'Cancel Edit' : 'Edit Mission'}</span>
+          </Button>
+
           <Link href={`/insights?missionId=${mission._id}`}>
-            <Button variant="outline" size="sm" className="text-xs gap-1.5 border-border">
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs gap-1.5 border-border bg-surface text-foreground hover:bg-surface-hover"
+            >
               <BarChart2 className="h-3.5 w-3.5 text-cyan" />
-              <span>Mission Insights</span>
+              <span>Insights</span>
             </Button>
           </Link>
+
           <Button
             variant="outline"
             size="sm"
@@ -182,12 +246,13 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
             className={`text-xs gap-1.5 ${
               mission.status === 'completed'
                 ? 'border-lime/40 text-lime bg-lime/10'
-                : 'border-border text-muted-foreground'
+                : 'border-border text-muted-foreground bg-surface hover:bg-surface-hover'
             }`}
           >
             <CheckCircle2 className="h-3.5 w-3.5" />
             <span>{mission.status === 'completed' ? 'Completed' : 'Mark Complete'}</span>
           </Button>
+
           <Button
             variant="danger"
             size="sm"
@@ -199,6 +264,125 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
           </Button>
         </div>
       </div>
+
+      {/* Inline Mission Edit Form */}
+      {isEditingMission && (
+        <form
+          onSubmit={handleSaveMissionEdit}
+          className="rounded-2xl border border-primary/40 bg-surface p-6 shadow-xl space-y-4 animate-in fade-in"
+        >
+          <div className="flex items-center justify-between pb-2 border-b border-border">
+            <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+              <Edit3 className="h-4 w-4 text-primary" />
+              <span>Edit Mission Configuration</span>
+            </h3>
+            <button
+              type="button"
+              onClick={() => setIsEditingMission(false)}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Cancel
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Mission Title</Label>
+              <Input
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                placeholder="Title..."
+                className="text-xs"
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Deadline</Label>
+              <Input
+                type="date"
+                value={editDeadline}
+                onChange={(e) => setEditDeadline(e.target.value)}
+                className="text-xs font-mono"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Description</Label>
+            <textarea
+              value={editDescription}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                setEditDescription(e.target.value)
+              }
+              placeholder="What is this mission about?"
+              rows={2}
+              className="flex w-full rounded-xl border border-border bg-surface px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Priority</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {(['low', 'medium', 'high'] as const).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setEditPriority(p)}
+                    className={`py-1.5 rounded-lg border text-xs font-semibold capitalize transition-all ${
+                      editPriority === p
+                        ? 'border-primary bg-primary/20 text-foreground'
+                        : 'border-border bg-surface-hover/50 text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Color Tag</Label>
+              <div className="flex items-center gap-2 pt-1">
+                {['#7C5CFF', '#2DE2E6', '#C6FF3D', '#FFB020', '#FF5D73', '#FF61D2'].map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setEditColor(c)}
+                    className={`h-6 w-6 rounded-full transition-transform ${
+                      editColor === c
+                        ? 'scale-125 ring-2 ring-primary ring-offset-2 ring-offset-background'
+                        : 'opacity-70 hover:opacity-100'
+                    }`}
+                    style={{ backgroundColor: c }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-border">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsEditingMission(false)}
+              className="text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={isSavingMission}
+              className="bg-primary hover:bg-primary-hover text-white text-xs gap-1.5 font-medium"
+            >
+              <Save className="h-3.5 w-3.5" />
+              <span>{isSavingMission ? 'Saving...' : 'Save Mission'}</span>
+            </Button>
+          </div>
+        </form>
+      )}
 
       {/* Mission Summary & Insights Strip */}
       <div className="rounded-2xl border border-border bg-surface p-6 shadow-xl space-y-4">
@@ -238,19 +422,17 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
               <Clock className="h-4 w-4 text-info" />
               <span>{totalPlannedHours} hrs</span>
             </div>
-            <span className="text-[10px] text-muted-foreground mt-0.5 block">
-              Across all runways
-            </span>
+            <span className="text-[10px] text-muted-foreground mt-0.5 block">Execution runway</span>
           </div>
 
           <div className="bg-background/80 p-3.5 rounded-xl border border-border">
-            <span className="text-xs text-muted-foreground block mb-1">Runways Count</span>
-            <div className="flex items-center gap-2 font-mono font-bold text-foreground text-lg">
+            <span className="text-xs text-muted-foreground block mb-1">Runway Status</span>
+            <div className="flex items-center gap-2 font-mono font-bold text-foreground text-base">
               <Route className="h-4 w-4 text-primary" />
-              <span>{runways.length}</span>
+              <span>{runways.length > 0 ? 'Active' : 'None'}</span>
             </div>
             <span className="text-[10px] text-muted-foreground mt-0.5 block">
-              Under this mission
+              {runways.length > 0 ? runways[0].title : 'Awaiting plan'}
             </span>
           </div>
 
@@ -268,50 +450,78 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
         </div>
       </div>
 
-      {/* Runways Section (A runway cannot exist without a mission) */}
+      {/* Runway Section */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold tracking-tight text-foreground flex items-center gap-2">
               <Route className="h-5 w-5 text-primary" />
-              <span>Runways Under This Mission</span>
+              <span>Mission Runway</span>
             </h2>
             <p className="text-xs text-muted-foreground">
-              Sequenced day-by-day execution pipelines for this mission.
+              Sequenced day-by-day execution pipeline for &ldquo;{mission.title}&rdquo;.
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Link href={`/brain-dump`}>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs gap-1.5 border-border bg-surface text-foreground hover:bg-surface-hover"
-              >
-                <Sparkles className="h-3.5 w-3.5 text-cyan" />
-                <span>AI Brain Dump</span>
-              </Button>
-            </Link>
-            <Button
-              size="sm"
-              onClick={() => setShowAddRunway((prev) => !prev)}
-              className="bg-primary hover:bg-primary-hover text-white text-xs gap-1.5 shadow-md shadow-primary/20"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>{showAddRunway ? 'Cancel' : 'Create Runway'}</span>
-            </Button>
+          {/* Action buttons */}
+          <div className="flex flex-wrap items-center gap-2">
+            {runways.length === 0 ? (
+              <>
+                <Link href={`/brain-dump?missionId=${mission._id}`}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs gap-1.5 border-border bg-surface text-foreground hover:bg-surface-hover"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 text-cyan" />
+                    <span>Plan with AI</span>
+                  </Button>
+                </Link>
+
+                <Link href={`/brain-dump?missionId=${mission._id}&tab=template`}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs gap-1.5 border-border bg-surface text-foreground hover:bg-surface-hover"
+                  >
+                    <FileCode className="h-3.5 w-3.5 text-primary" />
+                    <span>Import Template</span>
+                  </Button>
+                </Link>
+
+                <Button
+                  size="sm"
+                  onClick={() => setShowAddRunway((prev) => !prev)}
+                  className="bg-primary hover:bg-primary-hover text-white text-xs gap-1.5 shadow-md shadow-primary/20"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>{showAddRunway ? 'Cancel' : 'Quick Create'}</span>
+                </Button>
+              </>
+            ) : (
+              <Link href={`/runway?missionId=${mission._id}&runwayId=${runways[0]._id}`}>
+                <Button
+                  size="sm"
+                  className="bg-primary hover:bg-primary-hover text-white text-xs gap-1.5 shadow-md shadow-primary/20"
+                >
+                  <Route className="h-3.5 w-3.5" />
+                  <span>Open Pipeline View</span>
+                  <ExternalLink className="h-3 w-3" />
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
 
-        {/* Inline Create Runway Form */}
-        {showAddRunway && (
+        {/* Inline Quick Create Runway Form */}
+        {showAddRunway && runways.length === 0 && (
           <form
             onSubmit={handleCreateRunway}
             className="p-5 rounded-2xl border border-primary/40 bg-surface shadow-xl space-y-4 animate-in fade-in"
           >
             <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
               <Plus className="h-4 w-4 text-primary" />
-              <span>Initialize New Runway for &ldquo;{mission.title}&rdquo;</span>
+              <span>Initialize Runway Pipeline for &ldquo;{mission.title}&rdquo;</span>
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -368,27 +578,45 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
           </form>
         )}
 
-        {/* Runways List */}
+        {/* Runways Display */}
         {runways.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border/80 bg-surface/30 p-10 text-center">
             <Route className="mx-auto h-10 w-10 text-muted-foreground mb-3 opacity-60" />
-            <h3 className="text-sm font-semibold text-foreground">No runways created yet</h3>
-            <p className="text-xs text-muted-foreground max-w-md mx-auto mt-1 mb-5">
-              This mission can live without a runway, but creating a runway unlocks sequenced daily
-              breakdowns, drag-and-drop planning, and capacity estimation.
+            <h3 className="text-sm font-semibold text-foreground">
+              No runway created yet for this mission
+            </h3>
+            <p className="text-xs text-muted-foreground max-w-md mx-auto mt-1 mb-6">
+              A mission can live without a runway, but creating one unlocks sequenced daily
+              breakdowns, drag-and-drop planning, time tracking, and capacity forecasting.
             </p>
-            <div className="flex items-center justify-center gap-3">
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <Link href={`/brain-dump?missionId=${mission._id}`}>
+                <Button className="bg-primary hover:bg-primary-hover text-white text-xs gap-1.5 shadow-md shadow-primary/20">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>Break Down with AI</span>
+                </Button>
+              </Link>
+              <Link href={`/brain-dump?missionId=${mission._id}&tab=template`}>
+                <Button
+                  variant="outline"
+                  className="text-xs gap-1.5 border-border bg-surface text-foreground hover:bg-surface-hover"
+                >
+                  <FileCode className="h-3.5 w-3.5 text-primary" />
+                  <span>Use Template / JSON</span>
+                </Button>
+              </Link>
               <Button
+                variant="outline"
                 onClick={() => setShowAddRunway(true)}
-                className="bg-primary hover:bg-primary-hover text-white text-xs gap-1.5"
+                className="text-xs gap-1.5 border-border bg-surface text-foreground hover:bg-surface-hover"
               >
                 <Plus className="h-3.5 w-3.5" />
-                <span>Create Runway</span>
+                <span>Manual Setup</span>
               </Button>
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {runways.map((runway) => {
               const rSteps = steps.filter((s) => s.runwayId?.toString() === runway._id.toString());
               const rDone = rSteps.filter((s) => s.status === 'done').length;
@@ -401,16 +629,21 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
                 >
                   <div className="space-y-3">
                     <div className="flex items-start justify-between gap-2">
-                      <h3 className="text-sm font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">
-                        {runway.title}
-                      </h3>
+                      <div>
+                        <span className="text-[10px] font-mono uppercase tracking-wider text-primary font-semibold">
+                          Active Pipeline
+                        </span>
+                        <h3 className="text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mt-0.5">
+                          {runway.title}
+                        </h3>
+                      </div>
                       <button
                         type="button"
                         onClick={(e) => handleDeleteRunway(runway._id, e)}
                         className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-danger rounded transition-opacity"
                         title="Delete Runway"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
 
@@ -428,7 +661,7 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
                     </div>
 
                     {/* Progress Bar */}
-                    <div className="w-full bg-background h-1.5 rounded-full overflow-hidden border border-border">
+                    <div className="w-full bg-background h-2 rounded-full overflow-hidden border border-border">
                       <div
                         className="h-full bg-primary rounded-full transition-all duration-300"
                         style={{ width: `${rPct}%` }}
@@ -444,9 +677,9 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="text-xs gap-1 text-primary hover:text-primary-hover hover:bg-primary/10 h-7 px-2.5"
+                        className="text-xs gap-1 text-primary hover:text-primary-hover hover:bg-primary/10 h-8 px-3"
                       >
-                        <span>Open Runway</span>
+                        <span>Open Pipeline</span>
                         <ExternalLink className="h-3 w-3" />
                       </Button>
                     </Link>

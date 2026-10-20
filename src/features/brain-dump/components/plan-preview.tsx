@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ParsedPlan, ParsedStep } from '@/lib/templates/parser';
 import { confirmAndSavePlanAction } from '@/features/brain-dump/actions';
 import { actionGetMissions } from '@/features/missions/actions';
-import { MissionWithRunway } from '@/features/missions/components/mission-modal';
+import { MissionWithRunway } from '@/features/missions/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

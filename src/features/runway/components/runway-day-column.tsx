@@ -68,7 +68,7 @@ export function RunwayDayColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        'flex flex-col w-72 shrink-0 rounded-2xl border bg-[#0F0F18] p-3.5 transition-all select-none relative',
+        'flex flex-col w-72 shrink-0 rounded-2xl border bg-surface/60 p-3.5 transition-all select-none relative',
         // Finished day glows lime
         isFinished && 'border-success/40 bg-success/[0.02] shadow-lg shadow-success/10',
         // Today is outlined violet

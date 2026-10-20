@@ -186,7 +186,7 @@ export function TodayDashboard({
 
       {/* Next Up Hero Card */}
       {nextUp ? (
-        <div className="relative overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-surface to-[#10101C] p-6 shadow-xl">
+        <div className="relative overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-surface to-surface-hover/50 p-6 shadow-xl">
           <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
             <div className="space-y-2 flex-1">
@@ -215,7 +215,7 @@ export function TodayDashboard({
           </div>
         </div>
       ) : totalToday === 0 ? (
-        <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-surface to-[#10101C] p-8 shadow-xl text-center">
+        <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-surface to-surface-hover/50 p-8 shadow-xl text-center">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 border border-primary/20 text-primary mb-4">
             <Target className="h-6 w-6" />
           </div>

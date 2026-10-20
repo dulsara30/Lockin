@@ -12,7 +12,7 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
       <div className="absolute inset-0 bg-brand-glow pointer-events-none" />
-      <div className="relative w-full max-w-sm rounded-2xl border border-border bg-[#14141F]/90 backdrop-blur-xl p-8 shadow-2xl">
+      <div className="relative w-full max-w-sm rounded-2xl border border-border bg-surface/90 backdrop-blur-xl p-8 shadow-2xl">
         <div className="mb-8 flex flex-col items-center text-center">
           <Image
             src="/logo.svg"

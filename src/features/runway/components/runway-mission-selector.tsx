@@ -16,7 +16,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { MissionWithRunway } from '@/features/missions/components/mission-modal';
+import { MissionWithRunway } from '@/features/missions/types';
 
 interface RunwayMissionSelectorProps {
   missions: MissionWithRunway[];

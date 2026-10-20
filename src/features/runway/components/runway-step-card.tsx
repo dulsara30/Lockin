@@ -36,9 +36,9 @@ export function RunwayStepCard({ step, onSelect, onQuickToggleStatus }: RunwaySt
       ref={setNodeRef}
       style={style}
       className={cn(
-        'group relative flex flex-col gap-2 rounded-xl border border-border bg-[#14141F] p-3 text-xs shadow-sm transition-all hover:border-primary/40 select-none',
+        'group relative flex flex-col gap-2 rounded-xl border border-border bg-surface p-3 text-xs shadow-sm transition-all hover:border-primary/40 select-none',
         isDragging && 'opacity-40 ring-2 ring-primary scale-[1.02] z-20 shadow-xl',
-        isCompleted && 'opacity-65 border-border/50 bg-[#101018]'
+        isCompleted && 'opacity-65 border-border/50 bg-muted/40'
       )}
     >
       <div className="flex items-start justify-between gap-2">

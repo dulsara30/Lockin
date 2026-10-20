@@ -2,39 +2,34 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import {
-  Target,
-  Plus,
-  Calendar,
-  Clock,
-  ArrowRight,
-  Trash2,
-  Archive,
-  Route,
-  CheckCircle2,
-  Settings2,
-  ExternalLink,
-} from 'lucide-react';
+import { Target, Plus, Calendar, Route, CheckCircle2, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  actionGetMissions,
-  actionArchiveMission,
-  actionDeleteMission,
-} from '@/features/missions/actions';
-import { MissionModal, MissionWithRunway } from './mission-modal';
-import { toast } from 'sonner';
+import { actionGetMissions } from '@/features/missions/actions';
+
+export interface MissionListItem {
+  _id: string;
+  title: string;
+  description?: string;
+  category?: string;
+  color?: string;
+  priority: string;
+  deadline: string | Date;
+  status: string;
+  hasRunway?: boolean;
+  stepCount?: number;
+  completedStepCount?: number;
+  runwayId?: string;
+}
 
 export function MissionsListView() {
-  const [missions, setMissions] = React.useState<MissionWithRunway[]>([]);
+  const [missions, setMissions] = React.useState<MissionListItem[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [selectedMission, setSelectedMission] = React.useState<MissionWithRunway | null>(null);
-  const [isModalOpen, setIsModalOpen] = React.useState(false);
 
   const fetchMissions = async () => {
     setIsLoading(true);
     const res = await actionGetMissions();
     if (res.success && res.data) {
-      setMissions(res.data);
+      setMissions(res.data as MissionListItem[]);
     }
     setIsLoading(false);
   };
@@ -43,42 +38,14 @@ export function MissionsListView() {
     fetchMissions();
   }, []);
 
-  const handleOpenMissionModal = (mission: MissionWithRunway) => {
-    setSelectedMission(mission);
-    setIsModalOpen(true);
-  };
-
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!confirm('Are you sure you want to delete this mission and its runway?')) return;
-    const res = await actionDeleteMission(id);
-    if (res.success) {
-      toast.success('Mission deleted');
-      setMissions((prev) => prev.filter((m) => m._id !== id));
-    } else {
-      toast.error('Failed to delete mission');
-    }
-  };
-
-  const handleArchive = async (id: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const res = await actionArchiveMission(id, true);
-    if (res.success) {
-      toast.success('Mission archived');
-      setMissions((prev) => prev.filter((m) => m._id !== id));
-    }
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-border/60">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Missions</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Core initiatives and tasks. Click any mission to inspect, edit details, or configure its
-            runway.
+            Core initiatives and tasks. Click any mission to inspect details, manage its runway, or
+            edit properties.
           </p>
         </div>
         <Link href="/missions/new">
@@ -122,10 +89,10 @@ export function MissionsListView() {
             const pct = stepCount > 0 ? Math.round((completedCount / stepCount) * 100) : 0;
 
             return (
-              <div
+              <Link
                 key={mission._id}
-                onClick={() => handleOpenMissionModal(mission)}
-                className="group cursor-pointer relative overflow-hidden rounded-2xl border border-border bg-surface p-5 transition-all hover:border-primary/50 hover:shadow-xl hover:shadow-primary/5 flex flex-col justify-between"
+                href={`/missions/${mission._id}`}
+                className="group relative overflow-hidden rounded-2xl border border-border bg-surface p-5 transition-all hover:border-primary/50 hover:shadow-xl hover:shadow-primary/5 flex flex-col justify-between"
               >
                 <div
                   className="absolute top-0 left-0 right-0 h-1"
@@ -188,29 +155,16 @@ export function MissionsListView() {
                     <span>Due {new Date(mission.deadline).toLocaleDateString()}</span>
                   </div>
 
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] text-primary group-hover:underline flex items-center gap-1 font-sans font-medium">
-                      <span>Details & Edit</span>
-                      <Settings2 className="h-3.5 w-3.5" />
-                    </span>
+                  <div className="flex items-center gap-1 text-[11px] text-primary group-hover:underline font-sans font-medium">
+                    <span>Manage</span>
+                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
                   </div>
                 </div>
-              </div>
+              </Link>
             );
           })}
         </div>
       )}
-
-      {/* Mission Details & Edit Modal */}
-      <MissionModal
-        mission={selectedMission}
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onMissionUpdated={() => fetchMissions()}
-        onMissionDeleted={(deletedId) => {
-          setMissions((prev) => prev.filter((m) => m._id !== deletedId));
-        }}
-      />
     </div>
   );
 }
