@@ -24,7 +24,13 @@ import { RolloverModal } from './rollover-modal';
 import { ReplanModal } from './replan-modal';
 import { ConfirmStartDayModal } from './confirm-start-day-modal';
 import { calculateMissionHealth, MissionHealthResult } from '@/lib/planning';
-import { actionCreateStep, actionReorderStep, actionUpdateStep } from '@/features/missions/actions';
+import {
+  actionCreateStep,
+  actionReorderStep,
+  actionUpdateStep,
+  actionQuickReorderStep,
+  actionQuickUpdateStepStatus,
+} from '@/features/missions/actions';
 import {
   actionDeleteRunway,
   actionStartDay,
@@ -182,8 +188,9 @@ export function RunwayPipeline({
 
     let targetDayIndex: number | null = null;
 
-    if (overId.startsWith('day-column-')) {
-      targetDayIndex = parseInt(overId.replace('day-column-', ''), 10);
+    if (overId.startsWith('day-')) {
+      const parsed = parseInt(overId.replace('day-column-', '').replace('day-', ''), 10);
+      if (!isNaN(parsed)) targetDayIndex = parsed;
     } else {
       const overItem = steps.find((s) => s._id === overId);
       if (overItem) targetDayIndex = overItem.dayIndex;
@@ -209,12 +216,15 @@ export function RunwayPipeline({
 
     let targetDayIndex = activeItem.dayIndex;
 
-    if (overId.startsWith('day-column-')) {
-      targetDayIndex = parseInt(overId.replace('day-column-', ''), 10);
+    if (overId.startsWith('day-')) {
+      const parsed = parseInt(overId.replace('day-column-', '').replace('day-', ''), 10);
+      if (!isNaN(parsed)) targetDayIndex = parsed;
     } else {
       const overItem = steps.find((s) => s._id === overId);
       if (overItem) targetDayIndex = overItem.dayIndex;
     }
+
+    const previousSteps = [...steps];
 
     const daySteps = steps
       .filter((s) => s.dayIndex === targetDayIndex)
@@ -239,16 +249,21 @@ export function RunwayPipeline({
       )
     );
 
-    // Single write to database
-    const res = await actionReorderStep({
-      stepId: activeId,
-      newDayIndex: targetDayIndex,
-      newOrder,
-    });
+    // Single write to database with optimistic rollback
+    try {
+      const res = await actionQuickReorderStep({
+        stepId: activeId,
+        newDayIndex: targetDayIndex,
+        newOrder,
+      });
 
-    if (!res.success) {
-      toast.error('Failed to sync reorder');
-      setSteps(steps); // Rollback
+      if (!res.success) {
+        setSteps(previousSteps); // Rollback
+        toast.error('Could not move task');
+      }
+    } catch {
+      setSteps(previousSteps); // Rollback
+      toast.error('Could not move task');
     }
   };
 
@@ -354,11 +369,17 @@ export function RunwayPipeline({
 
   const handleQuickToggleStatus = async (stepId: string, currentStatus: StepData['status']) => {
     const newStatus = currentStatus === 'done' ? 'todo' : 'done';
+    const previousSteps = [...steps];
     setSteps((prev) => prev.map((s) => (s._id === stepId ? { ...s, status: newStatus } : s)));
 
-    const res = await actionUpdateStep(stepId, { status: newStatus });
-    if (!res.success) {
-      setSteps((prev) => prev.map((s) => (s._id === stepId ? { ...s, status: currentStatus } : s)));
+    try {
+      const res = await actionQuickUpdateStepStatus(stepId, newStatus);
+      if (!res.success) {
+        setSteps(previousSteps);
+        toast.error('Failed to update status');
+      }
+    } catch {
+      setSteps(previousSteps);
       toast.error('Failed to update status');
     }
   };

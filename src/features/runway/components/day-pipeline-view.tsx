@@ -32,7 +32,11 @@ import {
 import { StepData, StepDrawer } from '@/features/steps/components/step-drawer';
 import { ConfirmStartDayModal } from './confirm-start-day-modal';
 import { ReplanModal } from './replan-modal';
-import { actionCreateStep, actionUpdateStep } from '@/features/missions/actions';
+import {
+  actionCreateStep,
+  actionUpdateStep,
+  actionQuickUpdateStepStatus,
+} from '@/features/missions/actions';
 import { actionStartDay } from '@/features/runway/actions';
 import { generateKeyBetween } from 'fractional-indexing';
 import { calculateDayCapacity } from '@/lib/planning';
@@ -369,21 +373,39 @@ export function DayPipelineView({
     if (!over) return;
 
     const stepId = String(active.id);
-    const targetLane = String(over.id) as 'todo' | 'doing' | 'blocked' | 'done';
+    const overId = String(over.id);
 
-    if (['todo', 'doing', 'blocked', 'done'].includes(targetLane)) {
-      const currentStep = steps.find((s) => s._id === stepId);
-      if (currentStep && currentStep.status !== targetLane) {
-        setSteps((prev) => prev.map((s) => (s._id === stepId ? { ...s, status: targetLane } : s)));
-
-        const res = await actionUpdateStep(stepId, { status: targetLane });
-        if (!res.success) {
-          setSteps((prev) =>
-            prev.map((s) => (s._id === stepId ? { ...s, status: currentStep.status } : s))
-          );
-          toast.error('Failed to sync status change');
-        }
+    let targetLane: 'todo' | 'doing' | 'blocked' | 'done' | null = null;
+    if (['todo', 'doing', 'blocked', 'done'].includes(overId as any)) {
+      targetLane = overId as any;
+    } else {
+      const overStep = steps.find((s) => s._id === overId);
+      if (overStep && ['todo', 'doing', 'blocked', 'done'].includes(overStep.status as any)) {
+        targetLane = overStep.status as any;
       }
+    }
+
+    if (!targetLane) return;
+
+    const currentStep = steps.find((s) => s._id === stepId);
+    if (!currentStep || currentStep.status === targetLane) return;
+
+    const previousSteps = [...steps];
+
+    // Optimistic Update
+    setSteps((prev) =>
+      prev.map((s) => (s._id === stepId ? { ...s, status: targetLane as any } : s))
+    );
+
+    try {
+      const res = await actionQuickUpdateStepStatus(stepId, targetLane);
+      if (!res.success) {
+        setSteps(previousSteps);
+        toast.error('Could not update status');
+      }
+    } catch {
+      setSteps(previousSteps);
+      toast.error('Could not update status');
     }
   };
 

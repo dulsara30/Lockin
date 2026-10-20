@@ -243,6 +243,38 @@ export async function actionReorderStep(raw: {
   }
 }
 
+export async function actionQuickUpdateStepStatus(
+  stepId: string,
+  status: 'todo' | 'doing' | 'done' | 'blocked' | 'skipped'
+) {
+  try {
+    const userId = await getRequiredUserId();
+    await updateStep(userId, stepId, { status });
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Server error' };
+  }
+}
+
+export async function actionQuickReorderStep(raw: {
+  stepId: string;
+  newDayIndex: number;
+  newOrder: string;
+}) {
+  try {
+    const userId = await getRequiredUserId();
+    const parsed = reorderStepSchema.safeParse(raw);
+    if (!parsed.success) {
+      return { success: false, error: 'Invalid reorder parameters' };
+    }
+
+    await reorderStep(userId, parsed.data.stepId, parsed.data.newDayIndex, parsed.data.newOrder);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Server error' };
+  }
+}
+
 export async function actionDeleteStep(stepId: string) {
   try {
     const userId = await getRequiredUserId();
