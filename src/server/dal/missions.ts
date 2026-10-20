@@ -1,5 +1,6 @@
 import { connectDB } from '@/lib/db';
 import { Mission, IMission, MissionPriority, MissionStatus } from '@/server/models/Mission';
+import { Runway } from '@/server/models/Runway';
 import { Step } from '@/server/models/Step';
 import { Activity } from '@/server/models/Activity';
 
@@ -10,8 +11,8 @@ export interface CreateMissionDTO {
   priority?: MissionPriority;
   tags?: string[];
   startDate?: Date;
-  deadline: Date;
-  dayCount: number;
+  deadline?: Date;
+  dayCount?: number;
 }
 
 export interface UpdateMissionDTO {
@@ -60,9 +61,14 @@ export async function createMission(userId: string, data: CreateMissionDTO) {
   if (!userId) throw new Error('Security Error: userId is required');
   await connectDB();
 
+  const defaultDeadline = new Date();
+  defaultDeadline.setDate(defaultDeadline.getDate() + (data.dayCount || 5));
+
   const mission = await Mission.create({
     ...data,
     userId,
+    deadline: data.deadline || defaultDeadline,
+    dayCount: data.dayCount || 5,
     status: 'active',
     archived: false,
   });
@@ -99,7 +105,8 @@ export async function deleteMission(userId: string, missionId: string) {
   if (!missionId) throw new Error('missionId is required');
   await connectDB();
 
-  // Cascade delete steps belonging to this mission and user
+  // Cascade delete runways and steps belonging to this mission and user
+  await Runway.deleteMany({ missionId, userId }).exec();
   await Step.deleteMany({ missionId, userId }).exec();
   const deleted = await Mission.findOneAndDelete({ _id: missionId, userId }).lean().exec();
   return deleted;

@@ -95,16 +95,16 @@ export function TemplatesListView({ initialTemplates }: TemplatesListViewProps) 
   return (
     <div className="space-y-8 animate-in fade-in-50 duration-200">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-[#262637]">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-border">
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary mb-1">
             <LayoutTemplate className="h-3.5 w-3.5 text-cyan" />
             <span>Reusable Pipelines</span>
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-[#F4F4FA]">
+          <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
             Mission Templates
           </h1>
-          <p className="text-sm text-[#9A9AB5] mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Save successful sprint structures and deploy multi-day runways in one click.
           </p>
         </div>
@@ -121,13 +121,13 @@ export function TemplatesListView({ initialTemplates }: TemplatesListViewProps) 
 
       {/* Templates Grid */}
       {templates.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-[#262637] bg-[#14141F] p-12 text-center space-y-4">
+        <div className="rounded-2xl border border-dashed border-border bg-surface p-12 text-center space-y-4">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 border border-primary/20 text-primary">
             <LayoutTemplate className="h-7 w-7" />
           </div>
           <div className="max-w-md mx-auto space-y-1">
-            <h3 className="text-base font-bold text-[#F4F4FA]">No saved templates yet</h3>
-            <p className="text-xs text-[#9A9AB5] leading-relaxed">
+            <h3 className="text-base font-bold text-foreground">No saved templates yet</h3>
+            <p className="text-xs text-muted-foreground leading-relaxed">
               You can save any active mission from its runway page as a reusable template, or
               generate one from a brain dump.
             </p>
@@ -136,7 +136,7 @@ export function TemplatesListView({ initialTemplates }: TemplatesListViewProps) 
             <Button
               variant="outline"
               size="sm"
-              className="text-xs border-[#262637] text-[#F4F4FA] bg-[#0C0C14] hover:bg-[#1A1A2B] gap-1.5"
+              className="text-xs border-border text-foreground bg-background hover:bg-surface-hover gap-1.5"
             >
               <Plus className="h-3.5 w-3.5 text-cyan" />
               <span>Create First Template</span>
@@ -164,16 +164,16 @@ export function TemplatesListView({ initialTemplates }: TemplatesListViewProps) 
             return (
               <div
                 key={tpl._id}
-                className="rounded-2xl border border-[#262637] bg-[#14141F] p-5 shadow-lg flex flex-col justify-between hover:border-primary/50 transition-all group space-y-4"
+                className="rounded-2xl border border-border bg-surface p-5 shadow-lg flex flex-col justify-between hover:border-primary/50 transition-all group space-y-4"
               >
                 <div className="space-y-2">
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-bold text-base text-[#F4F4FA] tracking-tight group-hover:text-primary transition-colors">
+                    <h3 className="font-bold text-base text-foreground tracking-tight group-hover:text-primary transition-colors">
                       {tpl.name}
                     </h3>
                     <button
                       onClick={() => handleDelete(tpl._id)}
-                      className="text-[#9A9AB5] hover:text-danger p-1 transition-colors"
+                      className="text-muted-foreground hover:text-danger p-1 transition-colors"
                       title="Delete template"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -181,19 +181,19 @@ export function TemplatesListView({ initialTemplates }: TemplatesListViewProps) 
                   </div>
 
                   {tpl.description && (
-                    <p className="text-xs text-[#9A9AB5] line-clamp-2 leading-relaxed">
+                    <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
                       {tpl.description}
                     </p>
                   )}
                 </div>
 
                 {/* Metrics */}
-                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#262637] text-xs">
-                  <div className="flex items-center gap-1.5 text-[#9A9AB5]">
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border text-xs">
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
                     <Calendar className="h-3.5 w-3.5 text-primary" />
                     <span>{tpl.structure.dayCount} Days</span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-[#9A9AB5]">
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
                     <Layers className="h-3.5 w-3.5 text-cyan" />
                     <span>
                       {stepCount} steps ({totalHours}h)
@@ -221,7 +221,7 @@ export function TemplatesListView({ initialTemplates }: TemplatesListViewProps) 
                     variant="outline"
                     size="icon"
                     onClick={() => handleDownloadTemplateJson(tpl)}
-                    className="h-8 w-8 border-[#262637] bg-[#0C0C14] text-[#9A9AB5] hover:text-[#F4F4FA]"
+                    className="h-8 w-8 border-border bg-background text-muted-foreground hover:text-foreground"
                     title="Export Template JSON"
                   >
                     <Download className="h-3.5 w-3.5" />

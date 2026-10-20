@@ -76,7 +76,7 @@ export function Sidebar() {
     <TooltipProvider delayDuration={200}>
       <aside
         className={cn(
-          'hidden md:flex flex-col h-screen border-r border-border bg-[#0E0E17] select-none transition-all duration-base ease-in-out z-30 shrink-0 sticky top-0',
+          'hidden md:flex flex-col h-screen border-r border-border bg-background select-none transition-all duration-base ease-in-out z-30 shrink-0 sticky top-0',
           isCollapsed ? 'w-[68px]' : 'w-64'
         )}
       >
@@ -99,14 +99,24 @@ export function Sidebar() {
                 priority
               />
             ) : (
-              <Image
-                src="/logo.svg"
-                alt="Lockin"
-                width={124}
-                height={32}
-                className="h-8 w-auto"
-                priority
-              />
+              <>
+                <Image
+                  src="/logo.svg"
+                  alt="Lockin"
+                  width={124}
+                  height={32}
+                  className="h-8 w-auto hidden dark:block"
+                  priority
+                />
+                <Image
+                  src="/logo-light.svg"
+                  alt="Lockin"
+                  width={124}
+                  height={32}
+                  className="h-8 w-auto block dark:hidden"
+                  priority
+                />
+              </>
             )}
           </Link>
           {!isCollapsed && (

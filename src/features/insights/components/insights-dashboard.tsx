@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   AreaChart,
   Area,
@@ -23,6 +24,8 @@ import {
   Sparkles,
   BarChart2,
   Layers,
+  Filter,
+  AlertTriangle,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -32,33 +35,76 @@ interface InsightsDashboardProps {
 }
 
 export function InsightsDashboard({ initialData }: InsightsDashboardProps) {
-  const [data] = useState<InsightsData>(initialData);
+  const router = useRouter();
+  const [data, setData] = useState<InsightsData>(initialData);
   const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setData(initialData);
+  }, [initialData]);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
+  const handleMissionChange = (missionId: string) => {
+    if (missionId === 'all') {
+      router.push('/insights');
+    } else {
+      router.push(`/insights?missionId=${missionId}`);
+    }
+  };
+
+  const selectedMission = data.missionsList?.find((m) => m._id === data.selectedMissionId);
+
   return (
     <div className="space-y-8 animate-in fade-in-50 duration-200">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-[#262637]">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-border">
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary mb-1">
             <TrendingUp className="h-3.5 w-3.5 text-cyan" />
             <span>Performance Analytics</span>
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-[#F4F4FA]">
+          <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
             Execution Insights
           </h1>
+          {selectedMission && (
+            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
+              <span>Filtered to:</span>
+              <span
+                className="h-2 w-2 rounded-full"
+                style={{ backgroundColor: selectedMission.color }}
+              />
+              <strong className="text-foreground">{selectedMission.title}</strong>
+            </p>
+          )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Mission Filter Dropdown */}
+          <div className="flex items-center gap-2 bg-surface border border-border rounded-xl px-3 py-1.5">
+            <Filter className="h-3.5 w-3.5 text-primary" />
+            <span className="text-xs text-muted-foreground font-semibold">Scope:</span>
+            <select
+              value={data.selectedMissionId || 'all'}
+              onChange={(e) => handleMissionChange(e.target.value)}
+              className="bg-transparent text-xs text-foreground font-medium focus:outline-none cursor-pointer"
+            >
+              <option value="all">All Missions (Global Analytics)</option>
+              {data.missionsList?.map((m) => (
+                <option key={m._id} value={m._id}>
+                  {m.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <Link href="/today">
             <Button
               variant="outline"
               size="sm"
-              className="text-xs border-[#262637] bg-[#14141F] text-[#F4F4FA] hover:bg-[#1A1A2B]"
+              className="text-xs border-border bg-surface text-foreground hover:bg-surface-hover"
             >
               Today Overview
             </Button>
@@ -75,12 +121,46 @@ export function InsightsDashboard({ initialData }: InsightsDashboardProps) {
         </div>
       </div>
 
+      {/* Schedule Drag Warning Banner */}
+      {data.failedDaysCount > 0 && (
+        <div className="rounded-2xl border border-danger/40 bg-danger/10 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-3 text-danger">
+            <div className="p-2 rounded-xl bg-danger/20 shrink-0">
+              <AlertTriangle className="h-5 w-5 text-danger" />
+            </div>
+            <div>
+              <strong className="text-sm font-bold block text-foreground">
+                Mission Schedule Drag Detected
+              </strong>
+              <p className="text-muted-foreground text-[11px] mt-0.5">
+                {data.failedDaysCount} day{data.failedDaysCount > 1 ? 's' : ''} exceeded the 24-hour
+                limit without completing planned tasks. This is dragging your overall milestone
+                completion.
+              </p>
+            </div>
+          </div>
+          <Link
+            href={
+              data.selectedMissionId ? `/runway?missionId=${data.selectedMissionId}` : '/runway'
+            }
+          >
+            <Button
+              size="sm"
+              className="bg-danger hover:bg-danger/90 text-white text-xs gap-1.5 shrink-0"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Re-plan Runway to Recover</span>
+            </Button>
+          </Link>
+        </div>
+      )}
+
       {/* Top Metric Hero Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Streak Card */}
-        <div className="rounded-2xl border border-[#262637] bg-[#14141F] p-5 shadow-lg relative overflow-hidden">
+        <div className="rounded-2xl border border-border bg-surface p-5 shadow-lg relative overflow-hidden">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-[#9A9AB5] uppercase tracking-wider">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Current Streak
             </span>
             <div className="p-2 rounded-xl bg-warning/15 text-warning">
@@ -88,21 +168,21 @@ export function InsightsDashboard({ initialData }: InsightsDashboardProps) {
             </div>
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-black font-mono text-[#F4F4FA]">
+            <span className="text-3xl font-black font-mono text-foreground">
               {data.currentStreak}
             </span>
-            <span className="text-xs text-[#9A9AB5]">days</span>
+            <span className="text-xs text-muted-foreground">days</span>
           </div>
-          <p className="text-[11px] text-[#9A9AB5] mt-2">
+          <p className="text-[11px] text-muted-foreground mt-2">
             Personal best:{' '}
-            <strong className="text-[#F4F4FA] font-mono">{data.longestStreak} days</strong>
+            <strong className="text-foreground font-mono">{data.longestStreak} days</strong>
           </p>
         </div>
 
         {/* Completion Rate */}
-        <div className="rounded-2xl border border-[#262637] bg-[#14141F] p-5 shadow-lg relative overflow-hidden">
+        <div className="rounded-2xl border border-border bg-surface p-5 shadow-lg relative overflow-hidden">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-[#9A9AB5] uppercase tracking-wider">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Completion Rate
             </span>
             <div className="p-2 rounded-xl bg-lime/15 text-lime">
@@ -114,13 +194,17 @@ export function InsightsDashboard({ initialData }: InsightsDashboardProps) {
               {data.completionRatePercent}%
             </span>
           </div>
-          <p className="text-[11px] text-[#9A9AB5] mt-2">Across {data.totalMissions} missions</p>
+          <p className="text-[11px] text-muted-foreground mt-2">
+            {selectedMission
+              ? `For mission "${selectedMission.title}"`
+              : `Across ${data.totalMissions} missions`}
+          </p>
         </div>
 
         {/* Planned Workload */}
-        <div className="rounded-2xl border border-[#262637] bg-[#14141F] p-5 shadow-lg relative overflow-hidden">
+        <div className="rounded-2xl border border-border bg-surface p-5 shadow-lg relative overflow-hidden">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-[#9A9AB5] uppercase tracking-wider">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Planned Hours
             </span>
             <div className="p-2 rounded-xl bg-primary/15 text-primary">
@@ -128,56 +212,56 @@ export function InsightsDashboard({ initialData }: InsightsDashboardProps) {
             </div>
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-black font-mono text-[#F4F4FA]">
+            <span className="text-3xl font-black font-mono text-foreground">
               {data.totalPlannedHours}
             </span>
-            <span className="text-xs text-[#9A9AB5]">hrs</span>
+            <span className="text-xs text-muted-foreground">hrs</span>
           </div>
-          <p className="text-[11px] text-[#9A9AB5] mt-2">Total pipeline workload</p>
+          <p className="text-[11px] text-muted-foreground mt-2">Total pipeline workload</p>
         </div>
 
         {/* Active Pipelines */}
-        <div className="rounded-2xl border border-[#262637] bg-[#14141F] p-5 shadow-lg relative overflow-hidden">
+        <div className="rounded-2xl border border-border bg-surface p-5 shadow-lg relative overflow-hidden">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-[#9A9AB5] uppercase tracking-wider">
-              Active Pipelines
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Active Missions
             </span>
             <div className="p-2 rounded-xl bg-cyan/15 text-cyan">
               <Layers className="h-4 w-4" />
             </div>
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-black font-mono text-[#F4F4FA]">
+            <span className="text-3xl font-black font-mono text-foreground">
               {data.activeMissions}
             </span>
-            <span className="text-xs text-[#9A9AB5]">running</span>
+            <span className="text-xs text-muted-foreground">running</span>
           </div>
-          <p className="text-[11px] text-[#9A9AB5] mt-2">
+          <p className="text-[11px] text-muted-foreground mt-2">
             {data.completedMissions} completed missions
           </p>
         </div>
       </div>
 
       {/* Burn-Down Curve Chart */}
-      <div className="rounded-2xl border border-[#262637] bg-[#14141F] p-6 shadow-xl space-y-4">
+      <div className="rounded-2xl border border-border bg-surface p-6 shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h3 className="text-base font-bold text-[#F4F4FA] flex items-center gap-2">
+            <h3 className="text-base font-bold text-foreground flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-primary" />
               Pipeline Burn-Down Velocity
             </h3>
-            <p className="text-xs text-[#9A9AB5]">
+            <p className="text-xs text-muted-foreground">
               Tracks planned vs actual remaining hours across mission runways.
             </p>
           </div>
           <div className="flex items-center gap-4 text-xs font-medium">
             <div className="flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-full bg-primary" />
-              <span className="text-[#9A9AB5]">Ideal Velocity</span>
+              <span className="text-muted-foreground">Ideal Velocity</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-full bg-cyan" />
-              <span className="text-[#F4F4FA]">Actual Remaining</span>
+              <span className="text-foreground">Actual Remaining</span>
             </div>
           </div>
         </div>
@@ -196,16 +280,21 @@ export function InsightsDashboard({ initialData }: InsightsDashboardProps) {
                     <stop offset="95%" stopColor="#2DE2E6" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#262637" />
-                <XAxis dataKey="dayLabel" stroke="#9A9AB5" fontSize={11} tickLine={false} />
-                <YAxis stroke="#9A9AB5" fontSize={11} tickLine={false} unit="h" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis
+                  dataKey="dayLabel"
+                  stroke="var(--muted-foreground)"
+                  fontSize={11}
+                  tickLine={false}
+                />
+                <YAxis stroke="var(--muted-foreground)" fontSize={11} tickLine={false} unit="h" />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: '#14141F',
-                    borderColor: '#262637',
+                    backgroundColor: 'var(--surface)',
+                    borderColor: 'var(--border)',
                     borderRadius: '12px',
                     fontSize: '12px',
-                    color: '#F4F4FA',
+                    color: 'var(--foreground)',
                   }}
                 />
                 <Area
@@ -229,7 +318,7 @@ export function InsightsDashboard({ initialData }: InsightsDashboardProps) {
               </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-full flex items-center justify-center text-xs text-[#9A9AB5]">
+            <div className="h-full flex items-center justify-center text-xs text-muted-foreground">
               Loading chart...
             </div>
           )}
@@ -239,13 +328,13 @@ export function InsightsDashboard({ initialData }: InsightsDashboardProps) {
       {/* Grid: Busiest Days & Per-Mission Rings */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Busiest Days */}
-        <div className="rounded-2xl border border-[#262637] bg-[#14141F] p-6 shadow-xl space-y-4">
+        <div className="rounded-2xl border border-border bg-surface p-6 shadow-xl space-y-4">
           <div>
-            <h3 className="text-base font-bold text-[#F4F4FA] flex items-center gap-2">
+            <h3 className="text-base font-bold text-foreground flex items-center gap-2">
               <Calendar className="h-4 w-4 text-cyan" />
               Weekly Rhythm & Activity
             </h3>
-            <p className="text-xs text-[#9A9AB5]">
+            <p className="text-xs text-muted-foreground">
               Completed tasks distributed by day of the week.
             </p>
           </div>
@@ -254,16 +343,26 @@ export function InsightsDashboard({ initialData }: InsightsDashboardProps) {
             {isMounted ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.busiestDays}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#262637" />
-                  <XAxis dataKey="day" stroke="#9A9AB5" fontSize={11} tickLine={false} />
-                  <YAxis stroke="#9A9AB5" fontSize={11} tickLine={false} allowDecimals={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis
+                    dataKey="day"
+                    stroke="var(--muted-foreground)"
+                    fontSize={11}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    stroke="var(--muted-foreground)"
+                    fontSize={11}
+                    tickLine={false}
+                    allowDecimals={false}
+                  />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: '#14141F',
-                      borderColor: '#262637',
+                      backgroundColor: 'var(--surface)',
+                      borderColor: 'var(--border)',
                       borderRadius: '12px',
                       fontSize: '12px',
-                      color: '#F4F4FA',
+                      color: 'var(--foreground)',
                     }}
                   />
                   <Bar
@@ -275,7 +374,7 @@ export function InsightsDashboard({ initialData }: InsightsDashboardProps) {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-xs text-[#9A9AB5]">
+              <div className="h-full flex items-center justify-center text-xs text-muted-foreground">
                 Loading rhythm...
               </div>
             )}
@@ -283,14 +382,16 @@ export function InsightsDashboard({ initialData }: InsightsDashboardProps) {
         </div>
 
         {/* Per-Mission Progress Rings */}
-        <div className="rounded-2xl border border-[#262637] bg-[#14141F] p-6 shadow-xl space-y-4">
+        <div className="rounded-2xl border border-border bg-surface p-6 shadow-xl space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-base font-bold text-[#F4F4FA] flex items-center gap-2">
+              <h3 className="text-base font-bold text-foreground flex items-center gap-2">
                 <Target className="h-4 w-4 text-lime" />
                 Mission Runway Progress
               </h3>
-              <p className="text-xs text-[#9A9AB5]">Completion percentage for active pipelines.</p>
+              <p className="text-xs text-muted-foreground">
+                Completion percentage for active pipelines.
+              </p>
             </div>
             <Link href="/missions" className="text-xs text-primary hover:underline font-medium">
               View All
@@ -299,17 +400,17 @@ export function InsightsDashboard({ initialData }: InsightsDashboardProps) {
 
           <div className="space-y-3.5 max-h-[250px] overflow-y-auto pr-1">
             {data.missionProgressRings.length === 0 ? (
-              <div className="py-12 text-center text-xs text-[#9A9AB5] border border-dashed border-[#262637] rounded-xl">
+              <div className="py-12 text-center text-xs text-muted-foreground border border-dashed border-border rounded-xl">
                 No active missions yet. Start a new mission runway to view completion rings.
               </div>
             ) : (
               data.missionProgressRings.map((m) => (
                 <div
                   key={m.missionId}
-                  className="p-3.5 rounded-xl border border-[#262637] bg-[#1A1A2B] space-y-2 hover:border-primary/40 transition-colors"
+                  className="p-3.5 rounded-xl border border-border bg-surface-hover space-y-2 hover:border-primary/40 transition-colors"
                 >
                   <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2 font-semibold text-[#F4F4FA] truncate max-w-[200px]">
+                    <div className="flex items-center gap-2 font-semibold text-foreground truncate max-w-[200px]">
                       <span
                         className="h-2.5 w-2.5 rounded-full shrink-0"
                         style={{ backgroundColor: m.color }}
@@ -320,7 +421,7 @@ export function InsightsDashboard({ initialData }: InsightsDashboardProps) {
                   </div>
 
                   {/* Progress bar */}
-                  <div className="w-full bg-[#0C0C14] h-2 rounded-full overflow-hidden border border-[#262637]">
+                  <div className="w-full bg-background h-2 rounded-full overflow-hidden border border-border">
                     <div
                       className="h-full rounded-full transition-all duration-300"
                       style={{
@@ -330,7 +431,7 @@ export function InsightsDashboard({ initialData }: InsightsDashboardProps) {
                     />
                   </div>
 
-                  <div className="flex items-center justify-between text-[11px] text-[#9A9AB5] font-mono">
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground font-mono">
                     <span>
                       {m.completedSteps} / {m.totalSteps} tasks done
                     </span>

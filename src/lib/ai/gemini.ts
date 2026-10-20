@@ -176,10 +176,21 @@ Construct the complete execution pipeline.`;
     return planSchema.parse(parsedJson);
   } catch (error: unknown) {
     console.error('Gemini plan generation error:', error);
-    const err = error as { code?: string; message?: string };
+    const err = error as { code?: string; message?: string; status?: number };
     if (err.code === 'AI_LIMIT_REACHED') throw error;
+    const msg = err.message ?? '';
+    if (
+      err.status === 404 ||
+      msg.includes('no longer available') ||
+      msg.includes('NOT_FOUND') ||
+      msg.includes('404')
+    ) {
+      throw new Error(
+        'The AI model is unavailable or deprecated. Please update GEMINI_MODEL in your environment or use the Template Import path instead.'
+      );
+    }
     throw new Error(
-      `AI generation failed: ${err.message || 'Unknown error'}. You can switch to the template import path with no AI cost.`
+      'AI plan generation failed. Please try again or use the Template Import path instead.'
     );
   }
 }
@@ -294,7 +305,7 @@ export async function generateDailyBriefWithGemini(input: DailyBriefInput): Prom
 - Overdue from previous days: ${input.overdueSteps}
 - Next up: ${input.nextStepTitle || 'None'}
 
-Write an energetic, direct, 2-sentence briefing for a high-performer. No hashtags, no cheesy clichés. Linear/Things vibe.`;
+Write an energetic, direct, 2-sentence briefing for a high-performer. No hashtags, no cheesy clichÃ©s. Linear/Things vibe.`;
 
   try {
     const response = await ai.models.generateContent({

@@ -9,6 +9,7 @@ export const brainDumpAiInputSchema = z.object({
   days: z.coerce.number().int().min(1).max(30).default(5),
   hoursPerDay: z.coerce.number().int().min(1).max(16).default(4),
   priority: z.enum(['low', 'medium', 'high']).default('medium'),
+  missionId: z.string().optional(),
 });
 
 export const templateImportSchema = z.object({
@@ -20,6 +21,7 @@ export const templateImportSchema = z.object({
       days: z.coerce.number().int().min(1).max(30).optional(),
       hoursPerDay: z.coerce.number().int().min(1).max(16).optional(),
       priority: z.enum(['low', 'medium', 'high']).optional(),
+      missionId: z.string().optional(),
     })
     .optional(),
 });
@@ -28,6 +30,8 @@ export const confirmPlanSchema = planSchema.extend({
   startDate: z.string().optional(),
   deadline: z.string().optional(),
   color: z.string().default('#7C5CFF'),
+  missionId: z.string().optional(),
+  runwayTitle: z.string().optional(),
 });
 
 export { planSchema, planStepSchema, planDaySchema };

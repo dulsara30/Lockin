@@ -7,6 +7,7 @@ import { Step } from '@/server/models/Step';
 import { TimeLog } from '@/server/models/TimeLog';
 import { Activity } from '@/server/models/Activity';
 import { Template } from '@/server/models/Template';
+import { Runway } from '@/server/models/Runway';
 import { connectDB } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import { GoogleGenAI } from '@google/genai';
@@ -116,14 +117,17 @@ export async function exportAllUserDataAction() {
   await connectDB();
 
   try {
-    const [missions, steps, timeLogs, activities, templates, settings] = await Promise.all([
-      Mission.find({ userId }).lean().exec(),
-      Step.find({ userId }).lean().exec(),
-      TimeLog.find({ userId }).lean().exec(),
-      Activity.find({ userId }).lean().exec(),
-      Template.find({ userId }).lean().exec(),
-      getUserSettings(userId),
-    ]);
+    const [missions, runways, steps, timeLogs, activities, templates, settings] = await Promise.all(
+      [
+        Runway.find({ userId }).lean().exec(),
+        Mission.find({ userId }).lean().exec(),
+        Step.find({ userId }).lean().exec(),
+        TimeLog.find({ userId }).lean().exec(),
+        Activity.find({ userId }).lean().exec(),
+        Template.find({ userId }).lean().exec(),
+        getUserSettings(userId),
+      ]
+    );
 
     const exportData = {
       version: '1.0',
@@ -134,6 +138,7 @@ export async function exportAllUserDataAction() {
       },
       settings,
       missions,
+      runways,
       steps,
       timeLogs,
       activities,

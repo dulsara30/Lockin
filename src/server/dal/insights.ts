@@ -1,5 +1,6 @@
 import { connectDB } from '@/lib/db';
 import { Mission } from '@/server/models/Mission';
+import { Runway } from '@/server/models/Runway';
 import { Step } from '@/server/models/Step';
 import { Activity } from '@/server/models/Activity';
 
@@ -39,29 +40,75 @@ export interface InsightsData {
   totalMissions: number;
   activeMissions: number;
   completedMissions: number;
+  failedDaysCount: number;
+  isDraggingSchedule: boolean;
+  selectedMissionId?: string;
+  missionsList: Array<{ _id: string; title: string; color: string }>;
 }
 
-export async function getInsightsData(userId: string): Promise<InsightsData> {
+export async function getInsightsData(userId: string, missionId?: string): Promise<InsightsData> {
   if (!userId) throw new Error('Security Error: userId is required');
   await connectDB();
 
-  const [missions, steps, activities] = await Promise.all([
-    Mission.find({ userId }).lean().exec(),
+  const [missions, runways, allSteps, allActivities] = await Promise.all([
+    Mission.find({ userId }).sort({ deadline: 1 }).lean().exec(),
+    Runway.find({ userId, status: { $ne: 'archived' } })
+      .lean()
+      .exec(),
     Step.find({ userId }).lean().exec(),
     Activity.find({ userId }).sort({ at: 1 }).lean().exec(),
   ]);
 
-  const totalSteps = steps.length;
-  const completedSteps = steps.filter((s) => s.status === 'done').length;
+  // If missionId is provided and valid, filter steps and activities to that mission
+  const activeMission = missionId ? missions.find((m) => m._id.toString() === missionId) : null;
+  const filteredSteps = activeMission
+    ? allSteps.filter((s) => s.missionId.toString() === missionId)
+    : allSteps;
+  const filteredActivities = activeMission
+    ? allActivities.filter((a) => a.missionId?.toString() === missionId)
+    : allActivities;
+  const filteredRunways = activeMission
+    ? runways.filter((r) => r.missionId.toString() === missionId)
+    : runways;
+
+  let failedDaysCount = 0;
+  for (const r of filteredRunways) {
+    failedDaysCount += (r.dayFailedIndices || []).length;
+    if (r.dayStartTimes) {
+      const startTimes =
+        r.dayStartTimes instanceof Map
+          ? Object.fromEntries(r.dayStartTimes)
+          : (r.dayStartTimes as Record<string, Date>);
+      for (const [dayIdxStr, startTime] of Object.entries(startTimes)) {
+        const dIdx = parseInt(dayIdxStr, 10);
+        if (!(r.dayFailedIndices || []).includes(dIdx)) {
+          const elapsed = Date.now() - new Date(startTime as string | number | Date).getTime();
+          if (elapsed > 24 * 60 * 60 * 1000) {
+            const daySteps = filteredSteps.filter(
+              (s) => s.runwayId?.toString() === r._id.toString() && s.dayIndex === dIdx
+            );
+            if (daySteps.some((s) => s.status !== 'done')) {
+              failedDaysCount += 1;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const isDraggingSchedule = failedDaysCount > 0;
+
+  const totalSteps = filteredSteps.length;
+  const completedSteps = filteredSteps.filter((s) => s.status === 'done').length;
   const completionRatePercent =
     totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
 
-  const totalPlannedMinutes = steps.reduce((acc, s) => acc + (s.estimateMin || 0), 0);
-  const totalActualMinutes = steps.reduce((acc, s) => acc + (s.actualMin || 0), 0);
+  const totalPlannedMinutes = filteredSteps.reduce((acc, s) => acc + (s.estimateMin || 0), 0);
+  const totalActualMinutes = filteredSteps.reduce((acc, s) => acc + (s.actualMin || 0), 0);
 
   // Compute Streaks from Activity
   const activityDays = new Set<string>();
-  for (const act of activities) {
+  for (const act of filteredActivities) {
     if (act.at) {
       const d = new Date(act.at).toISOString().split('T')[0];
       activityDays.add(d);
@@ -91,7 +138,6 @@ export async function getInsightsData(userId: string): Promise<InsightsData> {
     prevDate = curDate;
   }
 
-  // Check if current streak extends to today or yesterday
   if (sortedDays.length > 0) {
     const lastActive = new Date(sortedDays[sortedDays.length - 1]);
     const today = new Date();
@@ -112,7 +158,7 @@ export async function getInsightsData(userId: string): Promise<InsightsData> {
     6: { completedSteps: 0, actualMinutes: 0 },
   };
 
-  for (const step of steps) {
+  for (const step of filteredSteps) {
     if (step.status === 'done' && step.updatedAt) {
       const dayIdx = new Date(step.updatedAt).getDay();
       dayBuckets[dayIdx].completedSteps += 1;
@@ -128,9 +174,9 @@ export async function getInsightsData(userId: string): Promise<InsightsData> {
 
   // Mission Progress Rings & Breakdown
   const missionProgressRings: MissionProgressRing[] = missions
-    .filter((m) => !m.archived)
+    .filter((m) => !m.archived && (!activeMission || m._id.toString() === missionId))
     .map((m) => {
-      const mSteps = steps.filter((s) => s.missionId.toString() === m._id.toString());
+      const mSteps = allSteps.filter((s) => s.missionId.toString() === m._id.toString());
       const mTotal = mSteps.length;
       const mCompleted = mSteps.filter((s) => s.status === 'done').length;
       const mPlanned = mSteps.reduce((acc, s) => acc + (s.estimateMin || 0), 0);
@@ -187,5 +233,13 @@ export async function getInsightsData(userId: string): Promise<InsightsData> {
     totalMissions: missions.length,
     activeMissions,
     completedMissions,
+    failedDaysCount,
+    isDraggingSchedule,
+    selectedMissionId: activeMission ? activeMission._id.toString() : undefined,
+    missionsList: missions.map((m) => ({
+      _id: m._id.toString(),
+      title: m.title,
+      color: m.color || '#7C5CFF',
+    })),
   };
 }

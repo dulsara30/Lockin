@@ -13,7 +13,8 @@ import {
   ParsedPlan,
 } from '@/lib/templates/parser';
 import { brainDumpAiInputSchema, templateImportSchema, confirmPlanSchema } from './schemas';
-import { createMission } from '@/server/dal/missions';
+import { createMission, getMissionById, updateMission } from '@/server/dal/missions';
+import { createRunway, getRunwayByMission, getRunwaysByMission } from '@/server/dal/runways';
 import { createStep, getStepsByMission } from '@/server/dal/steps';
 import { getTodayDashboardData } from '@/server/dal/today';
 import { generateKeyBetween } from 'fractional-indexing';
@@ -108,29 +109,59 @@ export async function confirmAndSavePlanAction(planData: unknown) {
     };
   }
 
-  const { title, description, dayCount, priority, tags, days, color } = parsed.data;
+  const {
+    title,
+    description,
+    dayCount,
+    priority,
+    tags,
+    days,
+    color,
+    missionId: targetMissionId,
+    runwayTitle,
+  } = parsed.data;
   const userId = session.user.id;
 
   try {
-    // 1. Create the Mission
     const startDate = new Date();
     const deadline = new Date(startDate);
     deadline.setDate(deadline.getDate() + dayCount);
 
-    const mission = await createMission(userId, {
-      title,
+    let activeMissionId: string;
+
+    // 1. Resolve or Create Mission (A runway CANNOT exist without a mission)
+    if (targetMissionId) {
+      const existing = await getMissionById(userId, targetMissionId);
+      if (!existing) {
+        return { success: false, error: 'Selected mission does not exist.' };
+      }
+      activeMissionId = existing._id.toString();
+    } else {
+      const newMission = await createMission(userId, {
+        title,
+        description: description || '',
+        color: color || '#7C5CFF',
+        priority,
+        tags: tags || [],
+        startDate,
+        deadline,
+        dayCount,
+      });
+      activeMissionId = newMission._id.toString();
+    }
+
+    // 2. Create the Runway strictly under this Mission
+    const runway = await createRunway(userId, {
+      missionId: activeMissionId,
+      title: runwayTitle || `${title} Runway`,
       description: description || '',
-      color: color || '#7C5CFF',
-      priority,
-      tags: tags || [],
+      dayCount,
       startDate,
       deadline,
-      dayCount,
     });
+    const runwayId = runway._id.toString();
 
-    const missionId = mission._id.toString();
-
-    // 2. Create Steps with fractional-indexing
+    // 3. Create Steps linked to BOTH missionId and runwayId
     for (const day of days) {
       let previousKey: string | null = null;
 
@@ -139,7 +170,8 @@ export async function confirmAndSavePlanAction(planData: unknown) {
         previousKey = orderKey;
 
         await createStep(userId, {
-          missionId,
+          missionId: activeMissionId,
+          runwayId,
           dayIndex: day.dayIndex,
           order: orderKey,
           title: step.title,
@@ -154,14 +186,15 @@ export async function confirmAndSavePlanAction(planData: unknown) {
     revalidatePath('/missions');
     revalidatePath(`/runway`);
     revalidatePath('/today');
+    revalidatePath('/insights');
 
-    return { success: true, missionId };
+    return { success: true, missionId: activeMissionId, runwayId };
   } catch (error: unknown) {
     console.error('Save plan error:', error);
     const err = error as { message?: string };
     return {
       success: false,
-      error: `Failed to save mission: ${err.message || 'Database error'}`,
+      error: `Failed to save runway: ${err.message || 'Database error'}`,
     };
   }
 }
@@ -175,22 +208,48 @@ export async function replanMissionAction(missionId: string, hoursPerDay = 4) {
   const userId = session.user.id;
 
   try {
-    const steps = await getStepsByMission(userId, missionId);
+    const [steps, mission, activeRunway] = await Promise.all([
+      getStepsByMission(userId, missionId),
+      getMissionById(userId, missionId),
+      getRunwayByMission(userId, missionId),
+    ]);
+
     const incompleteSteps = steps.filter((s) => s.status !== 'done' && s.status !== 'skipped');
 
     if (incompleteSteps.length === 0) {
       return { success: false, error: 'No incomplete steps to re-plan.' };
     }
 
-    // Determine day count needed
-    const remainingDays = Math.max(
-      2,
-      Math.ceil(incompleteSteps.reduce((acc, s) => acc + s.estimateMin, 0) / (hoursPerDay * 60))
-    );
+    // Feasibility analysis: can remaining work fit in remaining days?
+    const deadline =
+      activeRunway?.deadline || mission?.deadline || new Date(Date.now() + 7 * 86400000);
+    const now = new Date();
+    const msLeft = new Date(deadline).getTime() - now.getTime();
+    const daysLeft = Math.max(1, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
+
+    const totalRemainingMin = incompleteSteps.reduce((acc, s) => acc + s.estimateMin, 0);
+    const availableCapacityMin = daysLeft * hoursPerDay * 60;
+    const isFeasible = totalRemainingMin <= availableCapacityMin;
+
+    const extraMin = Math.max(0, totalRemainingMin - availableCapacityMin);
+    const extraDaysNeeded = Math.ceil(extraMin / (hoursPerDay * 60));
+    const extraHoursPerDay =
+      daysLeft > 0 ? Math.round((totalRemainingMin / 60 / daysLeft - hoursPerDay) * 10) / 10 : 0;
+
+    const feasibility = {
+      isFeasible,
+      daysLeft,
+      totalRemainingMin,
+      availableCapacityMin,
+      extraDaysNeeded,
+      extraHoursPerDay: Math.max(0, extraHoursPerDay),
+    };
+
+    const remainingDays = Math.max(2, Math.ceil(totalRemainingMin / (hoursPerDay * 60)));
 
     const replanned = await replanMissionWithGemini({
       userId,
-      missionTitle: 'Re-planned Pipeline',
+      missionTitle: mission?.title ? `${mission.title} Re-plan` : 'Re-planned Pipeline',
       remainingDays,
       hoursPerDay,
       steps: incompleteSteps.map((s) => ({
@@ -202,13 +261,75 @@ export async function replanMissionAction(missionId: string, hoursPerDay = 4) {
       })),
     });
 
-    return { success: true, plan: replanned };
+    return { success: true, plan: replanned, feasibility };
   } catch (error: unknown) {
     const err = error as { message?: string };
     return {
       success: false,
       error: `Re-planning failed: ${err.message || 'Unknown error'}`,
     };
+  }
+}
+
+export async function applyReplanAction(missionId: string, plan: ParsedPlan) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { success: false, error: 'Unauthorized. Please log in.' };
+  }
+  const userId = session.user.id;
+
+  try {
+    const existingRunways = await getRunwaysByMission(userId, missionId);
+    const nextVersion =
+      existingRunways.length > 0 ? Math.max(...existingRunways.map((r) => r.version || 1)) + 1 : 2;
+
+    const startDate = new Date();
+    const deadline = new Date(startDate.getTime() + plan.dayCount * 24 * 60 * 60 * 1000);
+
+    // Create NEW Runway version under this mission (preserving previous runway versions)
+    const newRunway = await createRunway(userId, {
+      missionId,
+      title: `${plan.title || 'Pipeline'} (v${nextVersion})`,
+      description: plan.description || 'AI Re-balanced runway',
+      dayCount: plan.dayCount,
+      startDate,
+      deadline,
+      version: nextVersion,
+      isOriginal: false,
+    });
+
+    const newRunwayId = newRunway._id.toString();
+
+    // Insert steps for the replanned runway
+    for (const day of plan.days) {
+      let previousKey: string | null = null;
+      for (const step of day.steps) {
+        const orderKey = generateKeyBetween(previousKey, null);
+        previousKey = orderKey;
+
+        await createStep(userId, {
+          missionId,
+          runwayId: newRunwayId,
+          dayIndex: day.dayIndex,
+          order: orderKey,
+          title: step.title,
+          notes: step.notes || '',
+          estimateMin: step.estimateMin,
+          status: 'todo',
+          checklist: step.checklist?.map((c) => ({ text: c.text, done: c.done })) || [],
+        });
+      }
+    }
+
+    revalidatePath('/runway');
+    revalidatePath('/missions');
+    revalidatePath('/today');
+    revalidatePath('/insights');
+
+    return { success: true, runwayId: newRunwayId, version: nextVersion };
+  } catch (error: unknown) {
+    const err = error as { message?: string };
+    return { success: false, error: err.message || 'Failed to apply re-plan' };
   }
 }
 

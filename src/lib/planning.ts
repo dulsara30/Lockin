@@ -127,7 +127,7 @@ export function calculateMissionHealth({
   if (ratio > 1.15) {
     health = 'Behind';
     recommendation = `Remaining work (${Math.round(remainingEstimateMin / 60)}h) significantly exceeds remaining capacity (${Math.round(remainingCapacityMin / 60)}h). Consider rolling over or adjusting day count.`;
-  } else if (ratio > 0.85 || overloadedDayIndices.includes(currentDayIndex)) {
+  } else if (ratio > 0.9 || overloadedDayIndices.includes(currentDayIndex)) {
     health = 'At risk';
     recommendation = `Remaining work is tight against capacity limit (${Math.round(ratio * 100)}% load). Little buffer for unexpected delays.`;
   }

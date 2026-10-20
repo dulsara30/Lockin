@@ -8,6 +8,7 @@ import {
   removeCustomGeminiKeyAction,
   exportAllUserDataAction,
 } from '@/features/settings/actions';
+import { applyTheme } from '@/lib/theme';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -47,6 +48,7 @@ export function SettingsView({ initialSettings, userEmail }: SettingsViewProps) 
   // Appearance & General
   const handleUpdateTheme = async (theme: 'dark' | 'light' | 'system') => {
     setSettings((prev) => ({ ...prev, theme }));
+    applyTheme(theme);
     const res = await updateSettingsAction({ theme });
     if (res.success && res.settings) {
       setSettings(res.settings);
@@ -144,26 +146,26 @@ export function SettingsView({ initialSettings, userEmail }: SettingsViewProps) 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-200">
       {/* Header */}
-      <div className="pb-4 border-b border-[#262637]">
+      <div className="pb-4 border-b border-border">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary mb-1">
           <SettingsIcon className="h-3.5 w-3.5" />
           <span>User Configuration</span>
         </div>
-        <h1 className="text-3xl font-extrabold tracking-tight text-[#F4F4FA]">
+        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
           Settings & Customization
         </h1>
-        <p className="text-sm text-[#9A9AB5] mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           Personalize working hours, theme, encrypted AI keys, and portable data backups.
         </p>
       </div>
 
       {/* 1. Appearance & Theme */}
-      <div className="rounded-2xl border border-[#262637] bg-[#14141F] p-6 shadow-xl space-y-4">
-        <h3 className="text-base font-bold text-[#F4F4FA] flex items-center gap-2">
+      <div className="rounded-2xl border border-border bg-surface p-6 shadow-xl space-y-4">
+        <h3 className="text-base font-bold text-foreground flex items-center gap-2">
           <Moon className="h-4 w-4 text-primary" />
           Appearance
         </h3>
-        <p className="text-xs text-[#9A9AB5]">
+        <p className="text-xs text-muted-foreground">
           Select your visual interface theme. Dark-first design is optimized for focus.
         </p>
 
@@ -174,8 +176,8 @@ export function SettingsView({ initialSettings, userEmail }: SettingsViewProps) 
               onClick={() => handleUpdateTheme(t)}
               className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl border text-xs font-semibold capitalize transition-all ${
                 settings.theme === t
-                  ? 'border-primary bg-primary/20 text-[#F4F4FA] shadow-md shadow-primary/20'
-                  : 'border-[#262637] bg-[#0C0C14] text-[#9A9AB5] hover:text-[#F4F4FA] hover:bg-[#1A1A2B]'
+                  ? 'border-primary bg-primary/20 text-foreground shadow-md shadow-primary/20'
+                  : 'border-border bg-background text-muted-foreground hover:text-foreground hover:bg-surface-hover'
               }`}
             >
               {t === 'dark' && <Moon className="h-4 w-4" />}
@@ -188,13 +190,13 @@ export function SettingsView({ initialSettings, userEmail }: SettingsViewProps) 
       </div>
 
       {/* 2. Working Capacity & Schedule */}
-      <div className="rounded-2xl border border-[#262637] bg-[#14141F] p-6 shadow-xl space-y-6">
+      <div className="rounded-2xl border border-border bg-surface p-6 shadow-xl space-y-6">
         <div>
-          <h3 className="text-base font-bold text-[#F4F4FA] flex items-center gap-2">
+          <h3 className="text-base font-bold text-foreground flex items-center gap-2">
             <Clock className="h-4 w-4 text-info" />
             Working Hours & Daily Capacity
           </h3>
-          <p className="text-xs text-[#9A9AB5]">
+          <p className="text-xs text-muted-foreground">
             Lockin uses your capacity targets to calculate runway risk and warn you when a day is
             overloaded.
           </p>
@@ -203,7 +205,7 @@ export function SettingsView({ initialSettings, userEmail }: SettingsViewProps) 
         {/* Global Hours Per Day */}
         <div className="space-y-2 max-w-sm">
           <div className="flex items-center justify-between text-xs">
-            <span className="font-semibold text-[#F4F4FA]">Default Work Hours / Day:</span>
+            <span className="font-semibold text-foreground">Default Work Hours / Day:</span>
             <span className="font-mono font-bold text-primary">
               {settings.workHoursPerDay} hrs/day
             </span>
@@ -219,8 +221,8 @@ export function SettingsView({ initialSettings, userEmail }: SettingsViewProps) 
         </div>
 
         {/* Per-Weekday Capacity Grid */}
-        <div className="space-y-3 pt-3 border-t border-[#262637]">
-          <span className="text-xs font-semibold text-[#F4F4FA] block">
+        <div className="space-y-3 pt-3 border-t border-border">
+          <span className="text-xs font-semibold text-foreground block">
             Capacity by Weekday (Hours):
           </span>
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
@@ -230,9 +232,9 @@ export function SettingsView({ initialSettings, userEmail }: SettingsViewProps) 
               return (
                 <div
                   key={dayKey}
-                  className="p-3 rounded-xl border border-[#262637] bg-[#0C0C14] text-center space-y-1.5"
+                  className="p-3 rounded-xl border border-border bg-background text-center space-y-1.5"
                 >
-                  <span className="text-[11px] font-semibold text-[#9A9AB5] block">
+                  <span className="text-[11px] font-semibold text-muted-foreground block">
                     {weekdayLabels[dayKey]}
                   </span>
                   <input
@@ -243,9 +245,9 @@ export function SettingsView({ initialSettings, userEmail }: SettingsViewProps) 
                     onChange={(e) =>
                       handleUpdateWeekdayCapacity(dayKey, parseInt(e.target.value, 10) || 0)
                     }
-                    className="w-14 mx-auto bg-[#14141F] border border-[#262637] text-center text-xs font-mono font-bold text-[#F4F4FA] rounded-md py-1"
+                    className="w-14 mx-auto bg-surface border border-border text-center text-xs font-mono font-bold text-foreground rounded-md py-1"
                   />
-                  <span className="text-[10px] text-[#9A9AB5] block">hrs</span>
+                  <span className="text-[10px] text-muted-foreground block">hrs</span>
                 </div>
               );
             })}
@@ -254,14 +256,14 @@ export function SettingsView({ initialSettings, userEmail }: SettingsViewProps) 
       </div>
 
       {/* 3. AI Rules & Custom BYOK Gemini Key */}
-      <div className="rounded-2xl border border-[#262637] bg-[#14141F] p-6 shadow-xl space-y-5">
+      <div className="rounded-2xl border border-border bg-surface p-6 shadow-xl space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h3 className="text-base font-bold text-[#F4F4FA] flex items-center gap-2">
+            <h3 className="text-base font-bold text-foreground flex items-center gap-2">
               <Key className="h-4 w-4 text-warning" />
               Gemini AI Integration (BYOK)
             </h3>
-            <p className="text-xs text-[#9A9AB5]">
+            <p className="text-xs text-muted-foreground">
               Bring your own free Gemini API key to unlock 100 AI generation calls per day.
             </p>
           </div>
@@ -273,15 +275,15 @@ export function SettingsView({ initialSettings, userEmail }: SettingsViewProps) 
                 <span>Custom Key Active (100/day)</span>
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#0C0C14] text-[#9A9AB5] border border-[#262637]">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-background text-muted-foreground border border-border">
                 <span>Shared Quota (10/day)</span>
               </span>
             )}
           </div>
         </div>
 
-        <div className="p-4 rounded-xl border border-[#262637] bg-[#0C0C14] space-y-4">
-          <p className="text-xs text-[#9A9AB5] leading-relaxed">
+        <div className="p-4 rounded-xl border border-border bg-background space-y-4">
+          <p className="text-xs text-muted-foreground leading-relaxed">
             Your key is encrypted on the server using <strong>AES-256-GCM</strong>. It is never
             logged or transmitted to the client.
           </p>
@@ -294,15 +296,15 @@ export function SettingsView({ initialSettings, userEmail }: SettingsViewProps) 
                 onChange={(e) => setApiKeyInput(e.target.value)}
                 placeholder={
                   settings.hasCustomGeminiKey
-                    ? '••••••••••••••••••••••••••••••••'
+                    ? 'Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢'
                     : 'Paste your Google AI Studio API key...'
                 }
-                className="bg-[#14141F] border-[#262637] text-xs text-[#F4F4FA] pr-10 rounded-xl"
+                className="bg-surface border-border text-xs text-foreground pr-10 rounded-xl"
               />
               <button
                 type="button"
                 onClick={() => setShowApiKey((prev) => !prev)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9A9AB5] hover:text-[#F4F4FA]"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
                 {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
@@ -332,13 +334,13 @@ export function SettingsView({ initialSettings, userEmail }: SettingsViewProps) 
       </div>
 
       {/* 4. Data Portability & Backup */}
-      <div className="rounded-2xl border border-[#262637] bg-[#14141F] p-6 shadow-xl space-y-4">
+      <div className="rounded-2xl border border-border bg-surface p-6 shadow-xl space-y-4">
         <div>
-          <h3 className="text-base font-bold text-[#F4F4FA] flex items-center gap-2">
+          <h3 className="text-base font-bold text-foreground flex items-center gap-2">
             <Download className="h-4 w-4 text-cyan" />
             Data Backup & Portability
           </h3>
-          <p className="text-xs text-[#9A9AB5]">
+          <p className="text-xs text-muted-foreground">
             Lockin respects your data sovereignty. Download a full JSON archive of your missions,
             pipeline steps, and timelogs anytime.
           </p>
@@ -348,7 +350,7 @@ export function SettingsView({ initialSettings, userEmail }: SettingsViewProps) 
           <Button
             onClick={handleExportData}
             disabled={isSaving}
-            className="bg-[#0C0C14] hover:bg-[#1A1A2B] text-[#F4F4FA] border border-[#262637] text-xs gap-2 rounded-xl px-4 py-2"
+            className="bg-background hover:bg-surface-hover text-foreground border border-border text-xs gap-2 rounded-xl px-4 py-2"
           >
             <Download className="h-3.5 w-3.5 text-primary" />
             <span>Export All Data (JSON)</span>

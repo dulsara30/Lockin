@@ -32,6 +32,7 @@ export const checklistItemSchema = z.object({
 
 export const createStepSchema = z.object({
   missionId: z.string().min(1),
+  runwayId: z.string().optional(),
   dayIndex: z.number().int().min(0),
   title: z.string().trim().min(1, 'Title is required').max(200),
   notes: z.string().max(10000).optional().default(''),
@@ -42,6 +43,7 @@ export const createStepSchema = z.object({
 });
 
 export const updateStepSchema = z.object({
+  runwayId: z.string().optional(),
   title: z.string().trim().min(1).max(200).optional(),
   notes: z.string().max(10000).optional(),
   estimateMin: z.number().int().min(0).max(1440).optional(),

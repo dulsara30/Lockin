@@ -1,9 +1,10 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { Plus, Clock, Sparkles } from 'lucide-react';
+import { Plus, Clock, Sparkles, Play, AlertTriangle, Maximize2 } from 'lucide-react';
 import { StepData } from '@/features/steps/components/step-drawer';
 import { RunwayStepCard } from './runway-step-card';
 import { calculateDayCapacity } from '@/lib/planning';
@@ -12,22 +13,30 @@ import { Input } from '@/components/ui/input';
 
 interface RunwayDayColumnProps {
   dayIndex: number;
+  missionId?: string;
   steps: StepData[];
   isToday: boolean;
   dailyCapacityMin?: number;
+  dayStartTime?: string | null;
+  isFailed?: boolean;
   onSelectStep: (step: StepData) => void;
   onAddStepInline: (dayIndex: number, title: string) => void;
   onQuickToggleStatus?: (stepId: string, currentStatus: StepData['status']) => void;
+  onStartDay?: (dayIndex: number) => void;
 }
 
 export function RunwayDayColumn({
   dayIndex,
+  missionId,
   steps,
   isToday,
   dailyCapacityMin = 240,
+  dayStartTime,
+  isFailed,
   onSelectStep,
   onAddStepInline,
   onQuickToggleStatus,
+  onStartDay,
 }: RunwayDayColumnProps) {
   const [isAdding, setIsAdding] = React.useState(false);
   const [newTitle, setNewTitle] = React.useState('');
@@ -64,53 +73,122 @@ export function RunwayDayColumn({
   const isFinished = capacity.isCompleted;
   const isOverloaded = capacity.isOverloaded;
 
+  // Check if 24h has expired
+  const isOverdue = React.useMemo(() => {
+    if (isFinished) return false;
+    if (isFailed) return true;
+    if (!dayStartTime) return false;
+    const startMs = new Date(dayStartTime).getTime();
+    return Date.now() - startMs > 24 * 60 * 60 * 1000;
+  }, [isFinished, isFailed, dayStartTime]);
+
+  // Hours left to end day
+  const hoursLeftDisplay = React.useMemo(() => {
+    if (!dayStartTime || isFinished) return null;
+    const startMs = new Date(dayStartTime).getTime();
+    const elapsed = Date.now() - startMs;
+    const leftMs = 24 * 60 * 60 * 1000 - elapsed;
+    if (leftMs <= 0) return 'Overdue';
+    const hours = Math.floor(leftMs / (1000 * 60 * 60));
+    const mins = Math.floor((leftMs % (1000 * 60 * 60)) / (1000 * 60));
+    return `${hours}h ${mins}m left`;
+  }, [dayStartTime, isFinished]);
+
+  const dayUrl = missionId ? `/runway/day?missionId=${missionId}&dayIndex=${dayIndex}` : '#';
+
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        'flex flex-col w-72 shrink-0 rounded-2xl border bg-[#0F0F18] p-3.5 transition-all select-none relative',
+        'flex flex-col w-72 shrink-0 rounded-2xl border bg-surface/60 p-3.5 transition-all select-none relative',
+        // Overdue failure turns red
+        isOverdue && 'border-danger/60 bg-danger/[0.03] shadow-lg shadow-danger/10',
         // Finished day glows lime
-        isFinished && 'border-success/40 bg-success/[0.02] shadow-lg shadow-success/10',
+        !isOverdue &&
+          isFinished &&
+          'border-success/40 bg-success/[0.02] shadow-lg shadow-success/10',
         // Today is outlined violet
-        isToday &&
+        !isOverdue &&
+          isToday &&
           !isFinished &&
           'border-primary ring-2 ring-primary/40 shadow-lg shadow-primary/10',
         // Overloaded turns amber
-        isOverloaded &&
+        !isOverdue &&
+          isOverloaded &&
           !isFinished &&
           'border-warning/50 bg-warning/[0.02] shadow-lg shadow-warning/10',
         // Default border
-        !isFinished && !isToday && !isOverloaded && 'border-border/80',
+        !isOverdue && !isFinished && !isToday && !isOverloaded && 'border-border/80',
         isOver && 'ring-2 ring-info/50 bg-info/[0.03]'
       )}
     >
       {/* Column Header */}
       <div className="pb-3 border-b border-border/60 space-y-2">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <Link
+            href={dayUrl}
+            className="flex items-center gap-1.5 cursor-pointer group"
+            title="Click to open dedicated day focus pipeline"
+          >
             <span
               className={cn(
-                'text-xs font-bold uppercase tracking-wider',
-                isToday ? 'text-primary' : 'text-foreground'
+                'text-xs font-bold uppercase tracking-wider group-hover:text-primary transition-colors',
+                isOverdue ? 'text-danger' : isToday ? 'text-primary' : 'text-foreground'
               )}
             >
               Day {dayIndex + 1}
             </span>
-            {isToday && (
+            <Maximize2 className="h-3 w-3 text-muted-foreground opacity-60 group-hover:opacity-100 group-hover:text-primary transition-all" />
+
+            {isOverdue && (
+              <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.2 rounded bg-danger/20 text-danger border border-danger/30 flex items-center gap-0.5">
+                <AlertTriangle className="h-2.5 w-2.5" />
+                <span>Overdue</span>
+              </span>
+            )}
+            {isToday && !isOverdue && (
               <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.2 rounded bg-primary/20 text-primary border border-primary/30">
                 Today
               </span>
             )}
-            {isFinished && (
+            {isFinished && !isOverdue && (
               <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.2 rounded bg-success/20 text-success border border-success/30">
                 Done
               </span>
             )}
-          </div>
+          </Link>
 
-          <span className="text-[11px] font-mono text-muted-foreground">
-            {steps.length} {steps.length === 1 ? 'task' : 'tasks'}
-          </span>
+          <div className="flex items-center gap-1.5">
+            {!dayStartTime && onStartDay && !isFinished && (
+              <button
+                type="button"
+                onClick={() => onStartDay(dayIndex)}
+                className="text-[10px] font-semibold px-2 py-0.5 rounded bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 flex items-center gap-1 transition-colors"
+                title="Start 24-hour countdown for this day"
+              >
+                <Play className="h-2.5 w-2.5 fill-current" />
+                <span>Start Day</span>
+              </button>
+            )}
+
+            {hoursLeftDisplay && !isFinished && (
+              <span
+                className={cn(
+                  'text-[10px] font-mono px-1.5 py-0.5 rounded font-semibold border',
+                  isOverdue
+                    ? 'bg-danger/15 text-danger border-danger/30'
+                    : 'bg-primary/10 text-primary border-primary/25'
+                )}
+                title="Remaining time in 24h window"
+              >
+                {hoursLeftDisplay}
+              </span>
+            )}
+
+            <span className="text-[11px] font-mono text-muted-foreground">
+              {steps.length} {steps.length === 1 ? 'task' : 'tasks'}
+            </span>
+          </div>
         </div>
 
         {/* Capacity Meter */}
@@ -125,11 +203,13 @@ export function RunwayDayColumn({
             <span
               className={cn(
                 'font-semibold',
-                isOverloaded
-                  ? 'text-warning'
-                  : isFinished
-                    ? 'text-success'
-                    : 'text-muted-foreground'
+                isOverdue
+                  ? 'text-danger'
+                  : isOverloaded
+                    ? 'text-warning'
+                    : isFinished
+                      ? 'text-success'
+                      : 'text-muted-foreground'
               )}
             >
               {capacity.percentageUsed}%
@@ -141,11 +221,13 @@ export function RunwayDayColumn({
             <div
               className={cn(
                 'h-full transition-all duration-base rounded-full',
-                isOverloaded
-                  ? 'bg-warning shadow-sm shadow-warning/50'
-                  : isFinished
-                    ? 'bg-success shadow-sm shadow-success/50'
-                    : 'bg-primary'
+                isOverdue
+                  ? 'bg-danger shadow-sm shadow-danger/50'
+                  : isOverloaded
+                    ? 'bg-warning shadow-sm shadow-warning/50'
+                    : isFinished
+                      ? 'bg-success shadow-sm shadow-success/50'
+                      : 'bg-primary'
               )}
               style={{ width: `${Math.min(100, capacity.percentageUsed)}%` }}
             />
