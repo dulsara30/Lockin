@@ -1,29 +1,35 @@
 import { Metadata } from 'next';
-import { LayoutTemplate } from 'lucide-react';
+import { auth } from '@/lib/auth';
+import { redirect } from 'next/navigation';
+import { getTemplates } from '@/server/dal/templates';
+import {
+  TemplatesListView,
+  TemplateItem,
+} from '@/features/templates/components/templates-list-view';
 
 export const metadata: Metadata = {
-  title: 'Templates',
+  title: 'Templates | Lockin',
+  description: 'Reusable sprint blueprints and multi-day mission templates.',
 };
 
-export default function TemplatesPage() {
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between pb-4 border-b border-border/60">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Templates</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Reusable sprint structures and workflow blueprints
-          </p>
-        </div>
-      </div>
+export default async function TemplatesPage() {
+  const session = await auth();
+  if (!session?.user?.id) {
+    redirect('/login');
+  }
 
-      <div className="rounded-2xl border border-dashed border-border/80 bg-surface/30 p-12 text-center">
-        <LayoutTemplate className="mx-auto h-10 w-10 text-muted-foreground mb-3 opacity-60" />
-        <h3 className="text-sm font-semibold text-foreground">Mission Blueprints</h3>
-        <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1">
-          Save your best recurring sprints as templates to spin up new missions in seconds.
-        </p>
-      </div>
+  const rawTemplates = await getTemplates(session.user.id);
+  const formattedTemplates: TemplateItem[] = rawTemplates.map((t) => ({
+    _id: t._id.toString(),
+    name: t.name,
+    description: t.description,
+    structure: t.structure,
+    createdAt: t.createdAt ? new Date(t.createdAt).toISOString() : new Date().toISOString(),
+  }));
+
+  return (
+    <div className="container py-8 px-4 sm:px-6 max-w-7xl mx-auto">
+      <TemplatesListView initialTemplates={formattedTemplates} />
     </div>
   );
 }
