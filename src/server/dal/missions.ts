@@ -37,7 +37,7 @@ export async function getMissions(
 
   const filter: Record<string, unknown> = { userId };
   if (!options.includeArchived) {
-    filter.archived = false;
+    filter.archived = { $ne: true };
   }
 
   const query = Mission.find(filter).sort({ deadline: 1, createdAt: -1 }).lean();
@@ -61,23 +61,16 @@ export async function createMission(userId: string, data: CreateMissionDTO) {
   if (!userId) throw new Error('Security Error: userId is required');
   await connectDB();
 
-  const defaultDeadline = new Date();
-  defaultDeadline.setDate(defaultDeadline.getDate() + (data.dayCount || 5));
-
   const mission = await Mission.create({
     ...data,
     userId,
-    deadline: data.deadline || defaultDeadline,
-    dayCount: data.dayCount || 5,
-    status: 'active',
-    archived: false,
   });
 
   await Activity.create({
     userId,
     type: 'created',
     missionId: mission._id,
-    metadata: { title: mission.title },
+    metadata: { title: `Mission created: ${mission.title}` },
     at: new Date(),
   });
 
@@ -97,6 +90,16 @@ export async function updateMission(userId: string, missionId: string, data: Upd
     .lean()
     .exec();
 
+  if (updated && data.status) {
+    await Activity.create({
+      userId,
+      type: 'status_changed',
+      missionId,
+      metadata: { status: data.status },
+      at: new Date(),
+    });
+  }
+
   return updated;
 }
 
@@ -105,23 +108,27 @@ export async function deleteMission(userId: string, missionId: string) {
   if (!missionId) throw new Error('missionId is required');
   await connectDB();
 
-  // Cascade delete runways and steps belonging to this mission and user
-  await Runway.deleteMany({ missionId, userId }).exec();
+  // Cascade delete all steps and runways belonging to this mission
   await Step.deleteMany({ missionId, userId }).exec();
+  await Runway.deleteMany({ missionId, userId }).exec();
+  await Activity.deleteMany({ missionId, userId }).exec();
+
   const deleted = await Mission.findOneAndDelete({ _id: missionId, userId }).lean().exec();
   return deleted;
 }
 
-export async function archiveMission(userId: string, missionId: string, archived: boolean) {
+export async function archiveMission(userId: string, missionId: string, archived = true) {
   if (!userId) throw new Error('Security Error: userId is required');
   if (!missionId) throw new Error('missionId is required');
   await connectDB();
 
-  return await Mission.findOneAndUpdate(
+  const updated = await Mission.findOneAndUpdate(
     { _id: missionId, userId },
     { $set: { archived, status: archived ? 'archived' : 'active' } },
     { new: true }
   )
     .lean()
     .exec();
+
+  return updated;
 }

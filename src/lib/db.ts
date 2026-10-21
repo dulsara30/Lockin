@@ -18,13 +18,13 @@ if (!global.mongooseCache) {
 }
 
 export async function connectDB(): Promise<typeof mongoose> {
-  if (cached.conn) {
+  if (cached.conn && cached.conn.connection.readyState === 1) {
     return cached.conn;
   }
 
   if (!cached.promise) {
     const opts: mongoose.ConnectOptions = {
-      bufferCommands: false,
+      bufferCommands: true,
       maxPoolSize: 10,
       dbName: 'Lockin',
     };
@@ -38,6 +38,7 @@ export async function connectDB(): Promise<typeof mongoose> {
     cached.conn = await cached.promise;
   } catch (e) {
     cached.promise = null;
+    cached.conn = null;
     throw e;
   }
 
