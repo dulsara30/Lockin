@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth';
+import { connectDB } from '@/lib/db';
 import {
   createMission,
   updateMission,
@@ -16,13 +17,12 @@ import {
   reorderStep,
   deleteStep,
   getStepsByMission,
+  getAllSteps,
   rolloverSteps,
 } from '@/server/dal/steps';
-import { getRunwaysByMission } from '@/server/dal/runways';
+import { getRunwaysByMission, getAllRunways } from '@/server/dal/runways';
 import { getInsightsData } from '@/server/dal/insights';
 import { calculateMissionHealth } from '@/lib/planning';
-import { Step } from '@/server/models/Step';
-import { Runway } from '@/server/models/Runway';
 import { startTimeLog, stopTimeLog, getTimeLogsByStep } from '@/server/dal/timeLogs';
 import {
   createMissionSchema,
@@ -117,12 +117,11 @@ export async function actionArchiveMission(missionId: string, archived: boolean)
 export async function actionGetMissions() {
   try {
     const userId = await getRequiredUserId();
+    await connectDB();
     const [missions, runways, steps] = await Promise.all([
       getMissions(userId),
-      Runway.find({ userId, status: { $ne: 'archived' } })
-        .lean()
-        .exec(),
-      Step.find({ userId }).lean().exec(),
+      getAllRunways(userId),
+      getAllSteps(userId),
     ]);
 
     const enriched = missions.map((m) => {

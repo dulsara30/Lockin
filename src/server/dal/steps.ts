@@ -28,6 +28,13 @@ export interface UpdateStepDTO {
   customFields?: Record<string, unknown>;
 }
 
+export async function getAllSteps(userId: string) {
+  if (!userId) throw new Error('Security Error: userId is required');
+  await connectDB();
+
+  return await Step.find({ userId }).lean().exec();
+}
+
 export async function getStepsByMission(userId: string, missionId: string, runwayId?: string) {
   if (!userId) throw new Error('Security Error: userId is required');
   if (!missionId) throw new Error('missionId is required');

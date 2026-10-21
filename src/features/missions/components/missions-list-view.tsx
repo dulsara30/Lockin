@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Target, Plus, Calendar, Route, CheckCircle2, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { actionGetMissions } from '@/features/missions/actions';
+import { toast } from 'sonner';
 
 export interface MissionListItem {
   _id: string;
@@ -30,6 +31,8 @@ export function MissionsListView() {
     const res = await actionGetMissions();
     if (res.success && res.data) {
       setMissions(res.data as MissionListItem[]);
+    } else if (!res.success && res.error) {
+      toast.error(res.error);
     }
     setIsLoading(false);
   };
@@ -67,11 +70,13 @@ export function MissionsListView() {
         </div>
       ) : missions.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border/80 bg-surface/30 p-12 text-center max-w-lg mx-auto">
-          <Target className="mx-auto h-12 w-12 text-muted-foreground mb-3 opacity-60" />
-          <h3 className="text-base font-semibold text-foreground">No active missions</h3>
-          <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1 mb-6">
-            Missions are your high-level tasks and objectives. A mission can live without a runway,
-            or you can attach a sequenced execution runway to it anytime.
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 border border-primary/20 text-primary mb-4">
+            <Target className="h-6 w-6" />
+          </div>
+          <h3 className="text-base font-bold text-foreground">No missions created yet</h3>
+          <p className="text-xs text-muted-foreground mt-1 mb-6">
+            Missions are the foundation of your plan. Break large initiatives into structured
+            timeframes.
           </p>
           <Link href="/missions/new">
             <Button className="bg-primary hover:bg-primary-hover text-white text-xs gap-2">
@@ -83,83 +88,86 @@ export function MissionsListView() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {missions.map((mission) => {
-            const hasRunway = !!mission.hasRunway;
-            const stepCount = mission.stepCount ?? 0;
-            const completedCount = mission.completedStepCount ?? 0;
-            const pct = stepCount > 0 ? Math.round((completedCount / stepCount) * 100) : 0;
+            const completedCount = mission.completedStepCount || 0;
+            const totalCount = mission.stepCount || 0;
+            const percent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+            const deadlineFormatted = new Date(mission.deadline).toISOString().split('T')[0];
 
             return (
               <Link
                 key={mission._id}
                 href={`/missions/${mission._id}`}
-                className="group relative overflow-hidden rounded-2xl border border-border bg-surface p-5 transition-all hover:border-primary/50 hover:shadow-xl hover:shadow-primary/5 flex flex-col justify-between"
+                className="group relative flex flex-col justify-between rounded-2xl border border-border/80 bg-surface/80 p-5 backdrop-blur-sm transition-all duration-200 hover:border-primary/50 hover:bg-surface-raised hover:shadow-lg hover:shadow-primary/5"
               >
-                <div
-                  className="absolute top-0 left-0 right-0 h-1"
-                  style={{ backgroundColor: mission.color || '#7C5CFF' }}
-                />
-
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">
-                      {mission.title}
-                    </h3>
-                    <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border shrink-0">
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div
+                        className="h-3 w-3 rounded-full shrink-0"
+                        style={{ backgroundColor: mission.color || '#7C5CFF' }}
+                      />
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground truncate">
+                        {mission.category || 'Initiative'}
+                      </span>
+                    </div>
+                    <span
+                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                        mission.priority === 'urgent'
+                          ? 'border-danger/30 text-danger bg-danger/10'
+                          : mission.priority === 'high'
+                            ? 'border-warning/30 text-warning bg-warning/10'
+                            : 'border-border text-muted-foreground bg-surface'
+                      }`}
+                    >
                       {mission.priority}
                     </span>
                   </div>
 
+                  <h3 className="text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">
+                    {mission.title}
+                  </h3>
+
                   {mission.description && (
-                    <p className="text-xs text-muted-foreground line-clamp-2">
+                    <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">
                       {mission.description}
                     </p>
                   )}
-
-                  {/* Runway Status & KPI */}
-                  <div className="flex items-center gap-2.5 pt-2 text-xs font-mono">
-                    {hasRunway ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 text-[11px] font-semibold">
-                        <Route className="h-3.5 w-3.5" />
-                        <span>Runway Active</span>
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-muted/60 text-muted-foreground border border-border text-[11px]">
-                        <span>No Runway</span>
-                      </span>
-                    )}
-
-                    {hasRunway && (
-                      <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-background text-muted-foreground border border-border text-[11px]">
-                        <CheckCircle2 className="h-3.5 w-3.5 text-lime" />
-                        <span>
-                          {completedCount}/{stepCount}
-                        </span>
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Progress Bar */}
-                  {stepCount > 0 && (
-                    <div className="w-full bg-background h-1.5 rounded-full overflow-hidden border border-border">
-                      <div
-                        className="h-full bg-primary rounded-full transition-all duration-300"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  )}
                 </div>
 
-                <div className="pt-3 mt-4 border-t border-border/50 flex items-center justify-between text-xs text-muted-foreground font-mono">
-                  <div className="flex items-center gap-1.5">
-                    <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span suppressHydrationWarning>
-                      Due {new Date(mission.deadline).toISOString().split('T')[0]}
+                <div className="mt-5 pt-4 border-t border-border/60 space-y-3">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5" />
+                      <span>{deadlineFormatted}</span>
+                    </span>
+                    <span className="flex items-center gap-1 font-mono">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                      <span>
+                        {completedCount}/{totalCount}
+                      </span>
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-1 text-[11px] text-primary group-hover:underline font-sans font-medium">
-                    <span>Manage</span>
-                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                  <div className="space-y-1">
+                    <div className="h-1.5 w-full bg-surface-raised rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary transition-all duration-300"
+                        style={{ width: `${percent}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[11px] font-medium text-primary flex items-center gap-1 group-hover:underline">
+                      <span>View Pipeline</span>
+                      <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-1" />
+                    </span>
+                    {mission.hasRunway && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-cyan bg-cyan/10 border border-cyan/20 px-2 py-0.5 rounded-full">
+                        <Route className="h-2.5 w-2.5" />
+                        <span>Runway Active</span>
+                      </span>
+                    )}
                   </div>
                 </div>
               </Link>
