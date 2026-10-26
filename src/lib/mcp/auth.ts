@@ -1,18 +1,13 @@
-import crypto from 'crypto';
-
-/** Constant-time bearer token check. Compares fixed-length digests to avoid length leaks. */
-export function verifyBearer(authHeader: string | null | undefined, secret: string): boolean {
-  if (!authHeader || !secret) return false;
+/** Extracts the token from an `Authorization: Bearer <token>` header. */
+export function bearerToken(authHeader: string | null | undefined): string | null {
+  if (!authHeader) return null;
   const match = /^Bearer\s+(\S+)$/i.exec(authHeader.trim());
-  if (!match) return false;
-  const a = crypto.createHash('sha256').update(match[1]).digest();
-  const b = crypto.createHash('sha256').update(secret).digest();
-  return crypto.timingSafeEqual(a, b);
+  return match ? match[1] : null;
 }
 
 /**
  * DNS-rebinding / browser-origin guard required by the MCP transport spec.
- * Non-browser clients (Claude Code, mcp-remote) send no Origin and are allowed;
+ * Non-browser clients (Claude Code, connector backends) send no Origin and are allowed;
  * a browser Origin must be same-host or explicitly allow-listed.
  */
 export function originAllowed(

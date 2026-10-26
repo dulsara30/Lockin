@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
 import { zodToJsonSchema } from '@/lib/mcp/schema';
 import { signConfirmToken, verifyConfirmToken, CONFIRM_TTL_MS } from '@/lib/mcp/confirm';
-import { verifyBearer, originAllowed } from '@/lib/mcp/auth';
+import { bearerToken, originAllowed } from '@/lib/mcp/auth';
 import { createMcpHandler, describeTool, ToolDef, ToolError } from '@/lib/mcp/protocol';
 import { summarizeArgs } from '@/server/dal/mcp';
 import { tools } from '@/server/mcp/tools';
@@ -57,14 +57,14 @@ describe('confirmation tokens', () => {
   });
 });
 
-describe('transport auth', () => {
-  it('verifies bearer tokens in constant time form', () => {
-    expect(verifyBearer(`Bearer ${SECRET}`, SECRET)).toBe(true);
-    expect(verifyBearer(`bearer ${SECRET}`, SECRET)).toBe(true);
-    expect(verifyBearer(`Bearer ${SECRET}x`, SECRET)).toBe(false);
-    expect(verifyBearer(SECRET, SECRET)).toBe(false);
-    expect(verifyBearer(null, SECRET)).toBe(false);
-    expect(verifyBearer('Bearer ', SECRET)).toBe(false);
+describe('transport guards', () => {
+  it('extracts bearer tokens', () => {
+    expect(bearerToken('Bearer abc123')).toBe('abc123');
+    expect(bearerToken('bearer abc123')).toBe('abc123');
+    expect(bearerToken('Bearer a b')).toBeNull();
+    expect(bearerToken('abc123')).toBeNull();
+    expect(bearerToken(null)).toBeNull();
+    expect(bearerToken('Bearer ')).toBeNull();
   });
 
   it('allows no Origin, same host and allow-listed origins only', () => {

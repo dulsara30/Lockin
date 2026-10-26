@@ -1,72 +1,72 @@
 # Lockin MCP server
 
-A private remote [MCP](https://modelcontextprotocol.io) server that lets Claude plan and manage your Lockin workspace. It ships in the same Next.js / Vercel deployment at `POST /api/mcp` (Streamable HTTP, stateless, JSON responses). There is nothing extra to deploy.
+A private remote [MCP](https://modelcontextprotocol.io) server that lets Claude plan and manage your Lockin workspace. It ships in the same Next.js / Vercel deployment at `POST /api/mcp` (Streamable HTTP, stateless, JSON responses). Lockin is also its own OAuth 2.1 server, so you connect by signing in to Lockin (Google or password) and pressing Allow. There are no keys to copy.
 
-## Enable it
+## Your setup checklist
 
-Set these in `.env.local` and in Vercel (Production), then redeploy:
+1. **Env vars** (`.env.local` and Vercel, Production), then redeploy:
 
-| Variable              | Required | Description                                                                        |
-| --------------------- | -------- | ---------------------------------------------------------------------------------- |
-| `MCP_SECRET_KEY`      | yes      | Bearer secret, **at least 32 characters**. Generate with `openssl rand -hex 32`.   |
-| `MCP_USER_EMAIL`      | yes      | Email of the Lockin account MCP acts as. It gets exactly that user's permissions.  |
-| `MCP_ALLOWED_ORIGINS` | no       | Comma-separated browser origins allowed to call MCP. CLI clients send no `Origin`. |
+   | Variable             | Required | Description                                                                                               |
+   | -------------------- | -------- | --------------------------------------------------------------------------------------------------------- |
+   | `MCP_ALLOWED_EMAILS` | yes      | Comma-separated Lockin account emails allowed to connect, e.g. `you@gmail.com`. Empty = MCP is off (404). |
+   | `NEXTAUTH_URL`       | yes      | Your production URL, e.g. `https://lockin.vercel.app` (no trailing slash). It becomes the OAuth issuer.   |
 
-If either required variable is missing the endpoint returns `404`, so it is off by default.
+   `AUTH_SECRET`, `GOOGLE` credentials and the database are already configured. Nothing else is needed. The old `MCP_SECRET_KEY` and `MCP_USER_EMAIL` variables are no longer used and can be deleted.
 
-## Connect Claude
+2. **Sign in once** at your Lockin site with the account listed in `MCP_ALLOWED_EMAILS` (Google works).
+3. **Add the connector in Claude** (below).
 
-Claude Code:
+## Add Lockin to Claude
+
+**Claude.ai / Claude Desktop (custom connector)**
+
+1. Settings -> Connectors -> Add custom connector.
+2. Name: `Lockin`. URL: `https://YOUR-DOMAIN/api/mcp`. Leave any OAuth client ID/secret fields empty (Lockin registers the client automatically).
+3. Click Connect. A Lockin window opens: sign in (Google or email), choose the access level, press **Allow access**.
+4. In a chat, enable the Lockin connector from the tools menu and try "What's on my plate today?".
+
+**Claude Code**
 
 ```bash
-claude mcp add --transport http lockin https://YOUR-DOMAIN/api/mcp --header "Authorization: Bearer YOUR_MCP_SECRET_KEY"
+claude mcp add --transport http lockin https://YOUR-DOMAIN/api/mcp
 ```
 
-Claude Desktop (`claude_desktop_config.json`, uses the `mcp-remote` bridge):
+Then run `/mcp` inside Claude Code, pick `lockin` and choose Authenticate. A browser opens for the same sign-in and consent.
 
-```json
-{
-  "mcpServers": {
-    "lockin": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-remote",
-        "https://YOUR-DOMAIN/api/mcp",
-        "--header",
-        "Authorization:${LOCKIN_MCP_AUTH}"
-      ],
-      "env": { "LOCKIN_MCP_AUTH": "Bearer YOUR_MCP_SECRET_KEY" }
-    }
-  }
-}
-```
+Connector UIs change between releases. If a field name differs, the URL above is the only thing you must provide.
 
-Note: claude.ai web "custom connectors" require OAuth, which this static-key server does not implement.
+## Access levels (you choose on the consent screen)
 
-## What it can do
+| Level        | Tools                                                                                                |
+| ------------ | ---------------------------------------------------------------------------------------------------- |
+| Read only    | Missions, runways, days, steps, today, insights, members, templates, settings, exports, parsing.     |
+| Read & write | Also create/edit missions, runways and steps, AI planning, save plans, log time, templates.          |
+| Full access  | Also delete steps and runways, archive missions and manage sharing (each still needs your approval). |
 
-Everything goes through the same access layer as the web UI (owner / editor / viewer), so MCP can never exceed what that user can do in the app.
-
-- **Read (36 tools total):** `whoami`, `list_missions`, `get_mission`, `get_runway`, `get_day`, `get_step`, `get_today`, `get_insights`, `list_members`, `list_templates`, `get_settings`, `get_ai_usage`, `export_runway` (json, md, csv, xlsx, pdf), `parse_template`.
-- **AI (uses your daily AI quota, preview only):** `generate_plan`, `replan_preview`.
-- **Write:** `create_mission`, `update_mission`, `create_runway`, `create_step`, `update_step`, `move_step`, `rollover_steps`, `start_day`, `switch_active_runway`, `log_time`, `save_plan`, `apply_replan`, `deploy_template`, `save_mission_as_template`.
-- **Critical (ask first):** `delete_step`, `delete_runway`, `archive_mission`, `add_member`, `update_member_role`, `remove_member`.
+Tools above the granted level are hidden from Claude entirely. Everything goes through the same owner / editor / viewer checks as the web app, so MCP can never exceed what your account can do in the UI.
 
 ### Ask-first for critical tools (enforced by the server)
 
-A critical call without a token never executes. It returns a preview of the exact impact plus a signed confirmation token bound to the tool, the exact arguments and the user (5 minute expiry, single use). Claude must show the preview, get your approval, then repeat the identical call with `confirmToken`. Critical tools are also annotated `destructiveHint`, so clients prompt too.
+`delete_step`, `delete_runway`, `archive_mission`, `add_member`, `update_member_role` and `remove_member` never run on the first call. The first call returns a preview of the exact impact and a signed single-use token bound to that exact call (5 minute expiry). Claude must show you the preview, get your approval, then repeat the call with the token.
 
 ### Deliberately not available
 
 Deleting missions, deleting or disabling users or accounts, passwords, sessions, API-key (BYOK) management, whole-account data export, and any raw database access or schema change.
 
+## Managing and revoking access
+
+Settings -> **Connected apps** lists every connected client with its access level and last use. **Disconnect** revokes its tokens immediately. Removing an email from `MCP_ALLOWED_EMAILS` blocks that account on the very next request, even with a valid token.
+
 ## Security model
 
-- Static bearer secret compared in constant time; failures are throttled per IP and never say why.
-- Rate limit of 120 requests/minute per IP, 256 KB body limit, strict JSON-RPC and Zod validation of every tool input.
-- `Origin` check (DNS-rebinding protection); no CORS headers are sent.
-- Every call is written to an audit trail (`mcpaudits`, 90-day TTL) with redacted arguments, status and IP.
-- Internal errors are never returned to the client; only deliberate messages are.
-- Mission content is untrusted data. The server instructions tell the model not to follow commands found inside steps or notes, and critical actions need your confirmation regardless.
-- Rotate by changing `MCP_SECRET_KEY` and redeploying. Revoke instantly by unsetting it.
+- **OAuth 2.1 for public clients:** authorization code + mandatory PKCE (S256), exact redirect URI matching (https, or loopback http for CLI tools), 60 second single-use codes, dynamic client registration (rate-limited, public clients only).
+- **Tokens:** random 256-bit values stored only as SHA-256 hashes. Access tokens last 1 hour and are bound to this server (audience). Refresh tokens last 30 days and rotate on every use; reusing an old refresh token revokes the whole grant.
+- **Sign-in reuses Lockin:** the consent screen requires a normal Lockin session (Google or password) and an allow-listed email. The decision is re-validated server-side; the form is not trusted.
+- Rate limits on registration, token, revoke and MCP calls. Failed token attempts are throttled per IP and never say why.
+- `Origin` check (DNS-rebinding protection), no CORS on MCP, 256 KB body limit, strict JSON-RPC and Zod validation of every tool input.
+- Every tool call is audited (`mcpaudits`, 90-day TTL) with redacted arguments, client, status and IP.
+- Internal errors are never returned to the client. Mission content is treated as untrusted data, and critical actions need your confirmation regardless.
+
+## Endpoints
+
+`/.well-known/oauth-protected-resource`, `/.well-known/oauth-authorization-server`, `POST /api/oauth/register`, `GET /oauth/authorize`, `POST /api/oauth/token`, `POST /api/oauth/revoke`, `POST /api/mcp`.

@@ -13,7 +13,10 @@ import { Label } from '@/components/ui/label';
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get('callbackUrl') || '/today';
+  // Only same-site relative paths (e.g. the MCP consent screen); anything else falls back
+  const requested = searchParams.get('callbackUrl') || '';
+  const callbackUrl =
+    requested.startsWith('/') && !requested.startsWith('//') ? requested : '/today';
 
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
@@ -59,7 +62,7 @@ export function LoginForm() {
       <Button
         type="button"
         variant="outline"
-        onClick={() => signIn('google', { callbackUrl: '/today' })}
+        onClick={() => signIn('google', { callbackUrl })}
         className="w-full h-11 gap-2 border-border bg-surface"
       >
         <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
