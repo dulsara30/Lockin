@@ -12,6 +12,7 @@
 - Phase 4: Insights & Customization merged into `main` (High-contrast UI visual polish, Recharts burn-down curve, planned vs actual, streaks, busiest days, mission progress rings, settings & BYOK encrypted keys, JSON data export/portability, template deployment).
 - Phase 5: Hardening & Advanced Execution merged into `main` (Versioned Runways preserving original v1, dedicated Day Focus kanban at `/runway/day/[dayIndex]`, 24-hour day commitment countdown with failure tracking, AI workload feasibility re-planning with overwork and extra day estimations, optimistic dnd-kit drag-and-drop with rollback, deterministic date hydration fix, threshold tuning).
 - Phase 6: Launch Prep & Deployment merged into `main` (Interactive "How It Works" guide at `/how-it-works` showcasing 4-level architecture and 7 core systems, v1.0.0 README documentation, route protection, patched Next.js 15.5.28 security fix, clean lockfile, and successful Vercel production deployment).
+- Post-launch features merged into `main`: Google SSO (#9), mission sharing with editor/viewer roles and multi-format export (#10), private MCP server with OAuth sign-in and Connected apps (#11, #13), and MCP day dates, today/health capacity and mission timeline sync fixes (#14). MCP setup: `docs/MCP.md`.
 
 ## Status
 
