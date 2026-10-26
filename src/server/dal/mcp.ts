@@ -27,20 +27,12 @@ export async function logMcpCall(entry: {
   status: 'ok' | 'error' | 'confirmation_required';
   error?: string;
   ip?: string;
+  clientId?: string;
   durationMs: number;
 }) {
   if (!entry.userId) return;
   await connectDB();
   await McpAudit.create({ ...entry, args: summarizeArgs(entry.args) });
-}
-
-/** The single identity MCP acts as: the account whose email is MCP_USER_EMAIL. */
-export async function getUserByEmail(email: string) {
-  await connectDB();
-  return await User.findOne({ email: email.trim().toLowerCase() })
-    .select('name email')
-    .lean()
-    .exec();
 }
 
 export async function getUserProfile(userId: string) {

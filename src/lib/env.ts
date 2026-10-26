@@ -12,9 +12,8 @@ const envSchema = z.object({
     .transform((val) => parseInt(val, 10))
     .pipe(z.number().positive()),
   NEXTAUTH_URL: z.string().optional(),
-  // Remote MCP server (disabled unless both are set). Key must be >= 32 chars; checked at request time.
-  MCP_SECRET_KEY: z.string().optional(),
-  MCP_USER_EMAIL: z.string().optional(),
+  // Remote MCP server: comma-separated Lockin account emails allowed to connect (off when empty)
+  MCP_ALLOWED_EMAILS: z.string().optional(),
   MCP_ALLOWED_ORIGINS: z.string().optional(),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 });

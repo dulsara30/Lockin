@@ -25,6 +25,7 @@ import {
   Sliders,
   ShieldCheck,
   Users,
+  Plug,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -227,6 +228,29 @@ const FEATURES: FeatureTab[] = [
       'Permissions are re-checked on the server for every single request (never trusted from the browser or cached in the session), so removing someone takes effect immediately. Non-members get "not found" so private missions are never revealed. Membership changes are written to the activity log.',
     actionUrl: '/missions',
     actionLabel: 'Open Missions',
+  },
+  {
+    id: 'mcp',
+    name: '9. Claude Connector (MCP)',
+    tagline: 'Let Claude Plan and Manage Lockin For You, Securely',
+    icon: Plug,
+    color: 'text-info',
+    description:
+      'Lockin includes a private MCP server so Claude can read your plans, generate and save runways, update steps and more, acting as you with the exact access you grant.',
+    whatItDoes: [
+      'Read only, Read & write or Full access: you choose on the consent screen, and tools above that level are hidden from Claude.',
+      'Everything respects your normal permissions: owner, editor and viewer rules apply to Claude exactly as they do to you.',
+      'Deleting, archiving and sharing always show a preview first and need your approval in the chat before they run.',
+    ],
+    howItWorks: [
+      'Add Lockin as a custom connector in Claude using your site URL followed by /api/mcp, then sign in with Google or email and press Allow.',
+      'Manage or disconnect any connected app in Settings, then Connected apps. Access is revoked immediately.',
+      'Access is invite-only. To request access or ask a question, contact the developer through dulsaramanakal.me.',
+    ],
+    systemAction:
+      'Lockin is its own OAuth 2.1 server (PKCE, single-use codes, rotating refresh tokens stored only as hashes). Every call is audited, rate-limited and re-checked against your account. Deleting missions or users and database access are never available to Claude.',
+    actionUrl: '/settings',
+    actionLabel: 'Open Connected apps',
   },
 ];
 

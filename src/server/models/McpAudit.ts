@@ -8,6 +8,7 @@ export interface IMcpAudit extends Document {
   status: 'ok' | 'error' | 'confirmation_required';
   error?: string;
   ip?: string;
+  clientId?: string;
   durationMs: number;
   at: Date;
 }
@@ -20,6 +21,7 @@ const McpAuditSchema = new Schema<IMcpAudit>({
   status: { type: String, enum: ['ok', 'error', 'confirmation_required'], required: true },
   error: { type: String },
   ip: { type: String },
+  clientId: { type: String },
   durationMs: { type: Number, default: 0 },
   at: { type: Date, default: () => new Date(), required: true },
 });
