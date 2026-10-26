@@ -83,7 +83,7 @@ export default async function AuthorizePage({
   if (!isEmailAllowed(session.user.email, allowed)) {
     return (
       <ErrorCard
-        message={`${session.user.email ?? 'This account'} is not allowed to connect apps. Sign in with an authorized account.`}
+        message={`${session.user.email ?? 'This account'} is not allowed to connect apps. MCP access is invite-only: to request it, contact the developer via dulsaramanakal.me.`}
       />
     );
   }

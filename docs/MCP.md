@@ -2,6 +2,10 @@
 
 A private remote [MCP](https://modelcontextprotocol.io) server that lets Claude plan and manage your Lockin workspace. It ships in the same Next.js / Vercel deployment at `POST /api/mcp` (Streamable HTTP, stateless, JSON responses). Lockin is also its own OAuth 2.1 server, so you connect by signing in to Lockin (Google or password) and pressing Allow. There are no keys to copy.
 
+## Want to use it?
+
+MCP access on a Lockin deployment is invite-only (accounts must be listed in `MCP_ALLOWED_EMAILS`). If you would like to use it, contact the developer through [dulsaramanakal.me](https://dulsaramanakal.me).
+
 ## Your setup checklist
 
 1. **Env vars** (`.env.local` and Vercel, Production), then redeploy:
