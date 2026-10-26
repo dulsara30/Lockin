@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { env } from '@/lib/env';
 import { checkRateLimit } from '@/lib/ratelimit';
-import { clientIp, originAllowed, verifyBearer } from '@/lib/mcp/auth';
+import { bearerToken, clientIp, originAllowed } from '@/lib/mcp/auth';
+import { getBaseUrl } from '@/lib/oauth/base-url';
+import { isEmailAllowed, parseAllowedEmails, resourceUrl, wwwAuthenticate } from '@/lib/oauth/core';
+import { verifyAccessToken } from '@/server/dal/oauth';
+import { getUserProfile } from '@/server/dal/mcp';
 import { buildMcpHandler } from '@/server/mcp/server';
 
 export const runtime = 'nodejs';
@@ -19,17 +23,17 @@ function rpcError(status: number, code: number, message: string, headers: Header
 }
 
 /**
- * Remote MCP endpoint (Streamable HTTP transport, stateless, JSON responses).
- * Disabled (404) unless MCP_SECRET_KEY (>= 32 chars) and MCP_USER_EMAIL are configured.
+ * Remote MCP endpoint (Streamable HTTP, stateless, JSON responses), protected by OAuth 2.1.
+ * Disabled (404) until MCP_ALLOWED_EMAILS lists at least one account.
  */
 export async function POST(req: Request) {
-  const secret = env.MCP_SECRET_KEY;
-  const userEmail = env.MCP_USER_EMAIL;
-  if (!secret || secret.length < 32 || !userEmail) {
+  const allowedEmails = parseAllowedEmails(env.MCP_ALLOWED_EMAILS);
+  if (allowedEmails.length === 0) {
     return NextResponse.json({ error: 'Not found' }, { status: 404, headers: NO_STORE });
   }
 
   const ip = clientIp(req.headers);
+  const base = getBaseUrl(req.headers, env.NEXTAUTH_URL);
   const allowList = (env.MCP_ALLOWED_ORIGINS || '')
     .split(',')
     .map((o) => o.trim())
@@ -39,15 +43,27 @@ export async function POST(req: Request) {
     return rpcError(403, -32000, 'Origin not allowed');
   }
 
-  if (!verifyBearer(req.headers.get('authorization'), secret)) {
-    // Throttle repeated failures per IP; never reveal why auth failed
-    const fail = await checkRateLimit(`mcp-fail:${ip}`, 10, 600);
-    return fail.success
-      ? rpcError(401, -32001, 'Unauthorized', { 'WWW-Authenticate': 'Bearer' })
-      : rpcError(429, -32002, 'Too many attempts');
+  // --- Authentication: OAuth access token issued by this server for this resource
+  const token = bearerToken(req.headers.get('authorization'));
+  const verified = token ? await verifyAccessToken(token) : null;
+  if (!verified || verified.resource !== resourceUrl(base)) {
+    if (token) {
+      // A presented-but-invalid token counts as a failure; a missing one is normal discovery
+      const fail = await checkRateLimit(`mcp-fail:${ip}`, 20, 600);
+      if (!fail.success) return rpcError(429, -32002, 'Too many attempts');
+    }
+    return rpcError(401, -32001, 'Unauthorized', {
+      'WWW-Authenticate': wwwAuthenticate(base, token ? 'invalid_token' : undefined),
+    });
   }
 
-  const limit = await checkRateLimit(`mcp:${ip}`, 120, 60);
+  // --- Authorization: the account must still be allowed (re-checked on every request)
+  const user = await getUserProfile(verified.userId);
+  if (!user || !isEmailAllowed(user.email, allowedEmails)) {
+    return rpcError(403, -32003, 'This account is not allowed to use MCP');
+  }
+
+  const limit = await checkRateLimit(`mcp:${verified.userId}`, 120, 60);
   if (!limit.success) return rpcError(429, -32002, 'Rate limit exceeded');
 
   const declared = Number(req.headers.get('content-length') || 0);
@@ -62,7 +78,13 @@ export async function POST(req: Request) {
     return rpcError(400, -32700, 'Parse error');
   }
 
-  const handler = buildMcpHandler({ secret, userEmail, ip });
+  const handler = buildMcpHandler({
+    secret: env.AUTH_SECRET,
+    userId: verified.userId,
+    clientId: verified.clientId,
+    scopes: verified.scopes,
+    ip,
+  });
   const result = await handler.handle(body);
   if (result === null) return new Response(null, { status: 202, headers: NO_STORE });
   return NextResponse.json(result, { headers: NO_STORE });

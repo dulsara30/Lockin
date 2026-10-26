@@ -215,7 +215,7 @@ pnpm exec playwright test
 
 ## 🤖 Claude MCP Server
 
-A private, key-protected MCP endpoint (`/api/mcp`) ships in the same Vercel deployment so Claude can plan and manage your workspace with your exact permissions. Critical actions (deletes, archiving, sharing) always require a server-enforced confirmation step. Setup and security model: [docs/MCP.md](docs/MCP.md).
+A private, key-protected MCP endpoint (`/api/mcp`) ships in the same Vercel deployment so Claude can plan and manage your workspace with your exact permissions (signed in through Lockin OAuth). Critical actions (deletes, archiving, sharing) always require a server-enforced confirmation step. Setup and security model: [docs/MCP.md](docs/MCP.md).
 
 ## 🔒 Security Architecture
 

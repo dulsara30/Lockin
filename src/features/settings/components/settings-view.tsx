@@ -30,13 +30,20 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { ConnectedApps } from '@/features/oauth/components/connected-apps';
+import type { ConnectedApp } from '@/server/dal/oauth';
 
 interface SettingsViewProps {
   initialSettings: UserSettingsResponse;
   userEmail?: string | null;
+  connectedApps?: ConnectedApp[];
 }
 
-export function SettingsView({ initialSettings, userEmail }: SettingsViewProps) {
+export function SettingsView({
+  initialSettings,
+  userEmail,
+  connectedApps = [],
+}: SettingsViewProps) {
   const [settings, setSettings] = useState<UserSettingsResponse>(initialSettings);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -357,6 +364,9 @@ export function SettingsView({ initialSettings, userEmail }: SettingsViewProps) 
           </Button>
         </div>
       </div>
+
+      {/* 5. Connected apps (MCP / OAuth) */}
+      <ConnectedApps initialApps={connectedApps} />
     </div>
   );
 }
