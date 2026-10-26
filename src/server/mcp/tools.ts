@@ -26,6 +26,7 @@ import {
   getRunwayByMission,
   getRunwaysByMission,
   startDay,
+  updateRunway,
   switchActiveRunway,
 } from '@/server/dal/runways';
 import {
@@ -56,6 +57,7 @@ import {
 import { getUserProfile } from '@/server/dal/mcp';
 import { requireMissionAccess, requireRunwayAccess, requireStepAccess } from '@/server/dal/access';
 import { loadExportDoc } from '@/server/export/runway-doc';
+import { dayDate, dayIndexForDate } from '@/lib/dates';
 
 /**
  * MCP tool catalog. Every tool acts as the single configured user and goes through the
@@ -127,6 +129,7 @@ async function persistPlan(
     dayCount: plan.dayCount,
     startDate,
     deadline,
+    hoursPerDay: plan.hoursPerDay,
     ...(opts.replan ? { version: nextVersion, isOriginal: false } : {}),
   });
   const runwayId = runway._id.toString();
@@ -237,11 +240,12 @@ export const tools: ToolDef[] = [
     async run({ missionId }, { userId }) {
       const access = await requireMissionAccess(userId, missionId, 'viewer');
       const o = access.ownerId;
-      const [mission, runways, active, members] = await Promise.all([
+      const [mission, runways, active, members, settings] = await Promise.all([
         getMissionById(o, missionId),
         getRunwaysByMission(o, missionId),
         getRunwayByMission(o, missionId),
         listMembers(o, missionId),
+        getUserSettings(userId),
       ]);
       if (!mission) throw new ToolError('Mission not found');
       const steps = active ? await getStepsByRunway(o, active._id.toString()) : [];
@@ -250,10 +254,12 @@ export const tools: ToolDef[] = [
             0,
             Math.min(
               active.dayCount - 1,
-              Math.floor((Date.now() - new Date(active.startDate).getTime()) / MS_DAY)
+              dayIndexForDate(active.startDate, new Date(), settings.timezone)
             )
           )
         : 0;
+      // Capacity is what the runway was planned with, else the user's setting
+      const hoursPerDay = active?.hoursPerDay || settings.workHoursPerDay || 4;
       const health = active
         ? calculateMissionHealth({
             steps: steps.map((s) => ({
@@ -263,6 +269,7 @@ export const tools: ToolDef[] = [
             })),
             dayCount: active.dayCount,
             currentDayIndex: dayNow,
+            dailyCapacityMin: hoursPerDay * 60,
           })
         : null;
       return {
@@ -276,6 +283,17 @@ export const tools: ToolDef[] = [
           dayCount: r.dayCount,
         })),
         health,
+        capacity: active
+          ? {
+              hoursPerDay,
+              dayCount: active.dayCount,
+              totalHours: hoursPerDay * active.dayCount,
+              today: {
+                dayIndex: dayNow,
+                date: dayDate(active.startDate, dayNow, settings.timezone),
+              },
+            }
+          : null,
         members: members.map((m) => ({
           userId: m.userId,
           name: m.name,
@@ -293,15 +311,18 @@ export const tools: ToolDef[] = [
     input: z.object({ runwayId: id }),
     async run({ runwayId }, { userId }) {
       const access = await requireRunwayAccess(userId, runwayId, 'viewer');
-      const [runway, steps] = await Promise.all([
+      const [runway, steps, settings] = await Promise.all([
         getRunwayById(access.ownerId, runwayId),
         getStepsByRunway(access.ownerId, runwayId),
+        getUserSettings(userId),
       ]);
       if (!runway) throw new ToolError('Runway not found');
       return {
         runway: clean(runway),
+        timezone: settings.timezone,
         days: Array.from({ length: runway.dayCount }, (_, d) => ({
           dayIndex: d,
+          date: dayDate(runway.startDate, d, settings.timezone),
           steps: clean(steps.filter((s) => s.dayIndex === d)),
         })),
       };
@@ -310,13 +331,24 @@ export const tools: ToolDef[] = [
   {
     name: 'get_day',
     title: 'Get day',
-    description: 'Steps of a single day (0-based dayIndex) in a runway.',
+    description: 'Date and steps of a single day (0-based dayIndex) in a runway.',
     tier: 'read',
     input: z.object({ runwayId: id, dayIndex }),
     async run({ runwayId, dayIndex: d }, { userId }) {
       const access = await requireRunwayAccess(userId, runwayId, 'viewer');
-      const steps = await getStepsByRunway(access.ownerId, runwayId);
-      return clean(steps.filter((s) => s.dayIndex === d));
+      const [runway, steps, settings] = await Promise.all([
+        getRunwayById(access.ownerId, runwayId),
+        getStepsByRunway(access.ownerId, runwayId),
+        getUserSettings(userId),
+      ]);
+      if (!runway) throw new ToolError('Runway not found');
+      if (d >= runway.dayCount) throw new ToolError('Day not found');
+      return {
+        dayIndex: d,
+        date: dayDate(runway.startDate, d, settings.timezone),
+        timezone: settings.timezone,
+        steps: clean(steps.filter((s) => s.dayIndex === d)),
+      };
     },
   },
   {
@@ -540,7 +572,7 @@ export const tools: ToolDef[] = [
     name: 'update_mission',
     title: 'Update mission',
     description:
-      'Edits mission fields or marks it active/completed. Archiving is a separate critical tool.',
+      'Edits mission fields, timeline (dayCount, startDate) or marks it active/completed. startDate also moves the active runway calendar. Archiving is a separate critical tool.',
     tier: 'write',
     input: z.object({
       missionId: id,
@@ -553,16 +585,39 @@ export const tools: ToolDef[] = [
         .optional(),
       tags: z.array(z.string().trim().max(40)).max(20).optional(),
       deadline: z.string().datetime().optional().describe('ISO 8601 date-time'),
+      dayCount: z.number().int().min(1).max(30).optional(),
+      startDate: z.string().datetime().optional().describe('ISO 8601 date-time'),
       status: z.enum(['active', 'completed']).optional(),
     }),
-    async run({ missionId, deadline, ...changes }, { userId }) {
+    async run({ missionId, deadline, startDate, ...changes }, { userId }) {
       const access = await requireMissionAccess(userId, missionId, 'editor');
-      const updated = await updateMission(access.ownerId, missionId, {
+      const o = access.ownerId;
+      const start = startDate ? new Date(startDate) : undefined;
+      const updated = await updateMission(o, missionId, {
         ...changes,
         ...(deadline ? { deadline: new Date(deadline) } : {}),
+        ...(start ? { startDate: start } : {}),
       });
       if (!updated) throw new ToolError('Mission not found');
-      return clean(updated);
+
+      // Keep the active runway calendar aligned when the start moves
+      const active = await getRunwayByMission(o, missionId);
+      if (active && start) {
+        await updateRunway(o, active._id.toString(), {
+          startDate: start,
+          deadline: new Date(start.getTime() + active.dayCount * MS_DAY),
+        });
+      }
+      return {
+        mission: clean(updated),
+        activeRunway: active
+          ? {
+              id: active._id.toString(),
+              dayCount: active.dayCount,
+              inSync: active.dayCount === updated.dayCount,
+            }
+          : null,
+      };
     },
   },
   {

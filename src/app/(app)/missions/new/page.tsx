@@ -133,16 +133,20 @@ export default function NewMissionPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="days">Mission Target Timeline ({deadlineDays} Days)</Label>
+            <Label htmlFor="days">Mission Target Timeline (days)</Label>
             <Input
               id="days"
               type="number"
               min={1}
-              max={365}
+              max={30}
+              placeholder="e.g. 14"
               value={deadlineDays}
-              onChange={(e) => setDeadlineDays(Math.max(1, Number(e.target.value)))}
+              onChange={(e) => setDeadlineDays(Math.min(30, Math.max(1, Number(e.target.value))))}
               className="font-mono text-sm"
             />
+            <p className="text-[11px] text-muted-foreground">
+              Ends in {deadlineDays} {deadlineDays === 1 ? 'day' : 'days'} (max 30).
+            </p>
           </div>
 
           <div className="space-y-2">

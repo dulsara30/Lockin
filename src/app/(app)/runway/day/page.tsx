@@ -81,7 +81,7 @@ export default async function DayPipelinePage({ searchParams }: DayPipelinePageP
         }}
         dayIndex={dayIndex}
         initialSteps={JSON.parse(JSON.stringify(daySteps))}
-        dailyCapacityMin={dailyCapacityMin}
+        dailyCapacityMin={runway.hoursPerDay ? runway.hoursPerDay * 60 : dailyCapacityMin}
         role={access.role}
       />
     </div>

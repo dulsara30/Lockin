@@ -118,7 +118,7 @@ export default async function RunwayPage({ searchParams }: RunwayPageProps) {
         runwaysList={JSON.parse(JSON.stringify(runwaysList))}
         initialSteps={JSON.parse(JSON.stringify(steps))}
         missionsList={JSON.parse(JSON.stringify(missions))}
-        dailyCapacityMin={dailyCapacityMin}
+        dailyCapacityMin={runway.hoursPerDay ? runway.hoursPerDay * 60 : dailyCapacityMin}
         role={role}
       />
     </div>
