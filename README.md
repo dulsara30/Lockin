@@ -213,6 +213,10 @@ pnpm exec playwright test
 
 ---
 
+## 🤖 Claude MCP Server
+
+A private, key-protected MCP endpoint (`/api/mcp`) ships in the same Vercel deployment so Claude can plan and manage your workspace with your exact permissions. Critical actions (deletes, archiving, sharing) always require a server-enforced confirmation step. Setup and security model: [docs/MCP.md](docs/MCP.md).
+
 ## 🔒 Security Architecture
 
 - **Scoped Queries:** Every database query executes through the Data-Access Layer (`src/server/dal/`) and strictly requires `userId`. Queries by document ID alone are strictly rejected.
