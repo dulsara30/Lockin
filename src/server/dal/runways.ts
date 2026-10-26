@@ -24,6 +24,7 @@ export interface UpdateRunwayDTO {
   deadline?: Date;
   status?: RunwayStatus;
   isActive?: boolean;
+  hoursPerDay?: number;
 }
 
 export async function getRunwayByMission(userId: string, missionId: string) {
@@ -164,6 +165,28 @@ export async function deleteRunway(userId: string, runwayId: string) {
   await Step.deleteMany({ runwayId, userId }).exec();
   const deleted = await Runway.findOneAndDelete({ _id: runwayId, userId }).lean().exec();
   return deleted;
+}
+
+/** The active runway is the source of truth: align the mission's dayCount and deadline to it. */
+export async function syncMissionToRunway(userId: string, missionId: string) {
+  if (!userId) throw new Error('Security Error: userId is required');
+  if (!missionId) throw new Error('missionId is required');
+  await connectDB();
+
+  const active = await Runway.findOne({
+    userId,
+    missionId,
+    isActive: true,
+    status: { $ne: 'archived' },
+  })
+    .lean()
+    .exec();
+  if (!active) return null;
+  await Mission.updateOne(
+    { _id: missionId, userId },
+    { $set: { dayCount: active.dayCount, deadline: active.deadline } }
+  );
+  return { dayCount: active.dayCount, deadline: active.deadline };
 }
 
 export async function startDay(userId: string, runwayId: string, dayIndex: number) {

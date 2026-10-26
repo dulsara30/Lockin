@@ -3,6 +3,7 @@ import { Mission } from '@/server/models/Mission';
 import { Step } from '@/server/models/Step';
 import { Activity } from '@/server/models/Activity';
 import { Runway } from '@/server/models/Runway';
+import { MissionMember } from '@/server/models/MissionMember';
 import { getUserSettings } from '@/server/dal/settings';
 import { dayDate, dayIndexForDate } from '@/lib/dates';
 
@@ -10,7 +11,17 @@ export async function getTodayDashboardData(userId: string) {
   if (!userId) throw new Error('Security Error: userId is required');
   await connectDB();
 
-  const activeMissions = await Mission.find({ userId, archived: false, status: 'active' }).lean();
+  // Missions I own plus missions shared with me (editor or viewer). Each mission's data lives
+  // under its OWNER's tenant, so owner ids come from verified membership grants only.
+  const grants = await MissionMember.find({ userId }).lean();
+  const roleByMission = new Map<string, string>(
+    grants.map((g) => [g.missionId.toString(), g.role])
+  );
+  const activeMissions = await Mission.find({
+    archived: false,
+    status: 'active',
+    $or: [{ userId }, ...grants.map((g) => ({ _id: g.missionId, userId: g.ownerId }))],
+  }).lean();
   if (activeMissions.length === 0) {
     return {
       todaySteps: [],
@@ -30,8 +41,7 @@ export async function getTodayDashboardData(userId: string) {
   // using calendar days in the user's timezone. Replans start a new runway, so the mission's
   // original start date would point at the wrong day.
   const runways = await Runway.find({
-    userId,
-    missionId: { $in: activeMissions.map((m) => m._id) },
+    $or: activeMissions.map((m) => ({ missionId: m._id, userId: m.userId })),
     status: { $ne: 'archived' },
   })
     .sort({ version: -1 })
@@ -49,7 +59,7 @@ export async function getTodayDashboardData(userId: string) {
   const stepResults = await Promise.all(
     missionDays.map(({ mission, runway, dayIndex }) =>
       Step.find({
-        userId,
+        userId: mission.userId,
         missionId: mission._id,
         dayIndex,
         // Steps of other runway versions are not part of today's plan (legacy steps have none)
@@ -65,6 +75,7 @@ export async function getTodayDashboardData(userId: string) {
     title: d.mission.title,
     runwayId: d.runway?._id.toString() ?? null,
     runwayVersion: d.runway?.version ?? null,
+    role: roleByMission.get(d.mission._id.toString()) ?? 'owner',
     dayIndex: d.dayIndex,
     date: d.date,
     stepCount: stepResults[i].length,
@@ -77,6 +88,7 @@ export async function getTodayDashboardData(userId: string) {
       ...s,
       missionTitle: m?.title || 'Mission',
       missionColor: m?.color || '#7C5CFF',
+      missionRole: roleByMission.get(s.missionId.toString()) ?? 'owner',
     };
   });
 
