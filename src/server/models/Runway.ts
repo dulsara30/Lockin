@@ -17,6 +17,7 @@ export interface IRunway extends Document {
   isActive: boolean;
   dayStartTimes: Map<string, Date>;
   dayFailedIndices: number[];
+  hoursPerDay?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -89,6 +90,12 @@ const RunwaySchema = new Schema<IRunway>(
     dayFailedIndices: {
       type: [Number],
       default: [],
+    },
+    // Daily capacity this runway was planned with; falls back to the user setting when absent
+    hoursPerDay: {
+      type: Number,
+      min: 1,
+      max: 24,
     },
   },
   {

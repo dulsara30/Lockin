@@ -2,6 +2,9 @@ import { connectDB } from '@/lib/db';
 import { Mission } from '@/server/models/Mission';
 import { Step } from '@/server/models/Step';
 import { Activity } from '@/server/models/Activity';
+import { Runway } from '@/server/models/Runway';
+import { getUserSettings } from '@/server/dal/settings';
+import { dayDate, dayIndexForDate } from '@/lib/dates';
 
 export async function getTodayDashboardData(userId: string) {
   if (!userId) throw new Error('Security Error: userId is required');
@@ -15,31 +18,57 @@ export async function getTodayDashboardData(userId: string) {
       totalPlannedMin: 0,
       totalCompletedMin: 0,
       streakDays: 0,
+      missions: [],
     };
   }
 
   const now = new Date();
+  const { timezone } = await getUserSettings(userId);
   const missionMap = new Map(activeMissions.map((m) => [m._id.toString(), m]));
 
-  // For each mission, calculate its current dayIndex relative to its startDate
-  const missionDayFilters = activeMissions.map((m) => {
-    const start = new Date(m.startDate).getTime();
-    const diffDays = Math.max(0, Math.floor((now.getTime() - start) / (1000 * 60 * 60 * 24)));
-    const dayIndex = Math.min(m.dayCount - 1, diffDays);
-    return { missionId: m._id, dayIndex };
+  // "Today" is derived from each mission's ACTIVE runway (its own start date and length),
+  // using calendar days in the user's timezone. Replans start a new runway, so the mission's
+  // original start date would point at the wrong day.
+  const runways = await Runway.find({
+    userId,
+    missionId: { $in: activeMissions.map((m) => m._id) },
+    status: { $ne: 'archived' },
+  })
+    .sort({ version: -1 })
+    .lean();
+
+  const missionDays = activeMissions.map((m) => {
+    const mine = runways.filter((r) => r.missionId.toString() === m._id.toString());
+    const runway = mine.find((r) => r.isActive) || mine[0] || null;
+    const start = runway?.startDate || m.startDate;
+    const dayCount = runway?.dayCount || m.dayCount;
+    const dayIndex = Math.min(dayCount - 1, Math.max(0, dayIndexForDate(start, now, timezone)));
+    return { mission: m, runway, dayIndex, date: dayDate(start, dayIndex, timezone) };
   });
 
-  // Query steps scheduled for each mission's current day
-  const stepQueries = missionDayFilters.map((f) =>
-    Step.find({
-      userId,
-      missionId: f.missionId,
-      dayIndex: f.dayIndex,
-    }).lean()
+  const stepResults = await Promise.all(
+    missionDays.map(({ mission, runway, dayIndex }) =>
+      Step.find({
+        userId,
+        missionId: mission._id,
+        dayIndex,
+        // Steps of other runway versions are not part of today's plan (legacy steps have none)
+        ...(runway ? { $or: [{ runwayId: runway._id }, { runwayId: { $exists: false } }] } : {}),
+      })
+        .sort({ order: 1 })
+        .lean()
+    )
   );
-
-  const queryResults = await Promise.all(stepQueries);
-  const rawSteps = queryResults.flat();
+  const rawSteps = stepResults.flat();
+  const missions = missionDays.map((d, i) => ({
+    missionId: d.mission._id.toString(),
+    title: d.mission.title,
+    runwayId: d.runway?._id.toString() ?? null,
+    runwayVersion: d.runway?.version ?? null,
+    dayIndex: d.dayIndex,
+    date: d.date,
+    stepCount: stepResults[i].length,
+  }));
 
   // Attach mission metadata to each step
   const todaySteps = rawSteps.map((s) => {
@@ -84,5 +113,6 @@ export async function getTodayDashboardData(userId: string) {
     totalPlannedMin,
     totalCompletedMin,
     streakDays,
+    missions,
   };
 }

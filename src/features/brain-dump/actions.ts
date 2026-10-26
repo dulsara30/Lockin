@@ -164,6 +164,7 @@ export async function confirmAndSavePlanAction(planData: unknown) {
       dayCount,
       startDate,
       deadline,
+      hoursPerDay: parsed.data.hoursPerDay,
     });
     const runwayId = runway._id.toString();
 
@@ -311,6 +312,7 @@ export async function applyReplanAction(missionId: string, rawPlan: ParsedPlan) 
       deadline,
       version: nextVersion,
       isOriginal: false,
+      hoursPerDay: plan.hoursPerDay,
     });
 
     const newRunwayId = newRunway._id.toString();

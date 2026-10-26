@@ -2,6 +2,7 @@ import { connectDB } from '@/lib/db';
 import { Runway, IRunway, RunwayStatus } from '@/server/models/Runway';
 import { Step } from '@/server/models/Step';
 import { Activity } from '@/server/models/Activity';
+import { Mission } from '@/server/models/Mission';
 
 export interface CreateRunwayDTO {
   missionId: string;
@@ -12,6 +13,7 @@ export interface CreateRunwayDTO {
   deadline: Date;
   version?: number;
   isOriginal?: boolean;
+  hoursPerDay?: number;
 }
 
 export interface UpdateRunwayDTO {
@@ -116,6 +118,12 @@ export async function createRunway(userId: string, data: CreateRunwayDTO) {
     isActive: true,
   });
 
+  // The new runway is the active one: keep the mission timeline in sync with it
+  await Mission.updateOne(
+    { _id: data.missionId, userId },
+    { $set: { dayCount: data.dayCount, deadline: data.deadline } }
+  );
+
   await Activity.create({
     userId,
     type: 'created',
@@ -206,6 +214,13 @@ export async function switchActiveRunway(userId: string, missionId: string, runw
   )
     .lean()
     .exec();
+
+  if (updated) {
+    await Mission.updateOne(
+      { _id: missionId, userId },
+      { $set: { dayCount: updated.dayCount, deadline: updated.deadline } }
+    );
+  }
 
   return updated;
 }
