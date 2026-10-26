@@ -1,7 +1,6 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
-// Future Google OAuth integration:
-// import Google from 'next-auth/providers/google';
+import Google from 'next-auth/providers/google';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { authConfig } from './auth.config';
@@ -19,12 +18,30 @@ const loginSchema = z.object({
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  callbacks: {
+    ...authConfig.callbacks,
+    async signIn({ user, account, profile }) {
+      if (account?.provider !== 'google') return true;
+
+      const email = profile?.email?.trim().toLowerCase();
+      if (!email || profile?.email_verified !== true) return false;
+
+      await connectDB();
+      // Link to an existing credentials account with the same email, or auto-register
+      let dbUser = await User.findOne({ email });
+      if (!dbUser) {
+        dbUser = await User.create({ email, name: profile?.name || email.split('@')[0] });
+      }
+
+      // Use our own user id (not Google's) so all userId-scoped data matches
+      user.id = dbUser._id.toString();
+      user.name = dbUser.name || user.name;
+      return true;
+    },
+  },
   providers: [
-    // Future Google provider:
-    // Google({
-    //   clientId: process.env.AUTH_GOOGLE_ID,
-    //   clientSecret: process.env.AUTH_GOOGLE_SECRET,
-    // }),
+    // Reads AUTH_GOOGLE_ID / AUTH_GOOGLE_SECRET from the environment
+    Google,
     Credentials({
       id: 'credentials',
       name: 'Email & Password',
