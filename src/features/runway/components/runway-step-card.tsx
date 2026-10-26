@@ -11,11 +11,18 @@ interface RunwayStepCardProps {
   step: StepData;
   onSelect: (step: StepData) => void;
   onQuickToggleStatus?: (stepId: string, currentStatus: StepData['status']) => void;
+  readOnly?: boolean;
 }
 
-export function RunwayStepCard({ step, onSelect, onQuickToggleStatus }: RunwayStepCardProps) {
+export function RunwayStepCard({
+  step,
+  onSelect,
+  onQuickToggleStatus,
+  readOnly = false,
+}: RunwayStepCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: step._id,
+    disabled: readOnly,
     data: {
       step,
       dayIndex: step.dayIndex,
@@ -45,9 +52,10 @@ export function RunwayStepCard({ step, onSelect, onQuickToggleStatus }: RunwaySt
         {/* Quick status toggle button */}
         <button
           type="button"
+          disabled={readOnly}
           onClick={(e) => {
             e.stopPropagation();
-            onQuickToggleStatus?.(step._id, step.status);
+            if (!readOnly) onQuickToggleStatus?.(step._id, step.status);
           }}
           className="mt-0.5 text-muted-foreground hover:text-primary transition-colors shrink-0"
           title={isCompleted ? 'Mark uncompleted' : 'Mark done'}
@@ -72,15 +80,17 @@ export function RunwayStepCard({ step, onSelect, onQuickToggleStatus }: RunwaySt
         </div>
 
         {/* Drag handle */}
-        <button
-          {...attributes}
-          {...listeners}
-          type="button"
-          className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity p-0.5 shrink-0"
-          aria-label="Drag step"
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
+        {!readOnly && (
+          <button
+            {...attributes}
+            {...listeners}
+            type="button"
+            className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity p-0.5 shrink-0"
+            aria-label="Drag step"
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {/* Footer Info: Estimate, Checklist, and Actuals */}

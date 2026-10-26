@@ -143,6 +143,11 @@ export function RunwayMissionSelector({ missions }: RunwayMissionSelectorProps) 
                       <h3 className="text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">
                         {mission.title}
                       </h3>
+                      {mission.role && mission.role !== 'owner' && (
+                        <span className="mt-1 inline-block rounded-full border border-info/30 bg-info/10 px-2 py-0.5 text-[10px] font-semibold text-info">
+                          Shared &bull; {mission.role === 'editor' ? 'Can edit' : 'View only'}
+                        </span>
+                      )}
                       {mission.description && (
                         <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
                           {mission.description}

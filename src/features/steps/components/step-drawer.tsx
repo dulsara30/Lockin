@@ -44,6 +44,7 @@ interface StepDrawerProps {
   onClose: () => void;
   onStepUpdated: (updated: StepData) => void;
   onStepDeleted: (stepId: string) => void;
+  readOnly?: boolean;
 }
 
 const statusOptions: { label: string; value: StepStatus; color: string }[] = [
@@ -60,6 +61,7 @@ export function StepDrawer({
   onClose,
   onStepUpdated,
   onStepDeleted,
+  readOnly = false,
 }: StepDrawerProps) {
   const [isEditingNotes, setIsEditingNotes] = React.useState(false);
   const [title, setTitle] = React.useState('');
@@ -84,6 +86,7 @@ export function StepDrawer({
   if (!step) return null;
 
   const handleSave = async (overrides: Partial<StepData> = {}) => {
+    if (readOnly) return;
     setIsSaving(true);
     const payload = {
       title,
@@ -160,21 +163,24 @@ export function StepDrawer({
               </div>
             </div>
 
-            <Link href={`/lockin?stepId=${step._id}`}>
-              <Button
-                size="sm"
-                className="bg-primary/20 text-primary hover:bg-primary hover:text-white border border-primary/30 gap-1.5 text-xs h-7"
-              >
-                <Play className="h-3 w-3 fill-current" />
-                <span>Lock In</span>
-              </Button>
-            </Link>
+            {!readOnly && (
+              <Link href={`/lockin?stepId=${step._id}`}>
+                <Button
+                  size="sm"
+                  className="bg-primary/20 text-primary hover:bg-primary hover:text-white border border-primary/30 gap-1.5 text-xs h-7"
+                >
+                  <Play className="h-3 w-3 fill-current" />
+                  <span>Lock In</span>
+                </Button>
+              </Link>
+            )}
           </div>
 
           <Input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onBlur={() => handleSave()}
+            readOnly={readOnly}
             className="text-lg font-bold border-transparent hover:border-border focus:border-primary bg-transparent px-1 -ml-1 transition-colors"
             placeholder="Step title..."
           />
@@ -189,6 +195,7 @@ export function StepDrawer({
                 {statusOptions.map((opt) => (
                   <button
                     key={opt.value}
+                    disabled={readOnly}
                     onClick={() => handleStatusChange(opt.value)}
                     className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition-all ${
                       status === opt.value
@@ -213,6 +220,7 @@ export function StepDrawer({
                   value={estimateMin}
                   onChange={(e) => setEstimateMin(Number(e.target.value))}
                   onBlur={() => handleSave()}
+                  disabled={readOnly}
                   className="w-28 font-mono text-sm"
                 />
                 <span className="text-xs text-muted-foreground">
@@ -241,6 +249,7 @@ export function StepDrawer({
                 >
                   <button
                     type="button"
+                    disabled={readOnly}
                     onClick={() => handleToggleSubtask(idx)}
                     className="flex items-center gap-2.5 flex-1 text-left min-w-0"
                   >
@@ -259,27 +268,31 @@ export function StepDrawer({
                       {item.text}
                     </span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveSubtask(idx)}
-                    className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-danger p-1 transition-opacity"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSubtask(idx)}
+                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-danger p-1 transition-opacity"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
               ))}
 
-              <form onSubmit={handleAddSubtask} className="flex items-center gap-2 pt-1">
-                <Input
-                  value={newSubtask}
-                  onChange={(e) => setNewSubtask(e.target.value)}
-                  placeholder="Add a subtask..."
-                  className="h-8 text-xs"
-                />
-                <Button type="submit" size="sm" variant="secondary" className="h-8 text-xs">
-                  <Plus className="h-3.5 w-3.5" />
-                </Button>
-              </form>
+              {!readOnly && (
+                <form onSubmit={handleAddSubtask} className="flex items-center gap-2 pt-1">
+                  <Input
+                    value={newSubtask}
+                    onChange={(e) => setNewSubtask(e.target.value)}
+                    placeholder="Add a subtask..."
+                    className="h-8 text-xs"
+                  />
+                  <Button type="submit" size="sm" variant="secondary" className="h-8 text-xs">
+                    <Plus className="h-3.5 w-3.5" />
+                  </Button>
+                </form>
+              )}
             </div>
           </div>
 
@@ -290,16 +303,18 @@ export function StepDrawer({
                 <FileText className="h-3.5 w-3.5 text-info" />
                 <span>Notes & Context (Markdown)</span>
               </Label>
-              <button
-                type="button"
-                onClick={() => setIsEditingNotes(!isEditingNotes)}
-                className="text-xs text-primary hover:underline"
-              >
-                {isEditingNotes ? 'Preview' : 'Edit'}
-              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={() => setIsEditingNotes(!isEditingNotes)}
+                  className="text-xs text-primary hover:underline"
+                >
+                  {isEditingNotes ? 'Preview' : 'Edit'}
+                </button>
+              )}
             </div>
 
-            {isEditingNotes ? (
+            {isEditingNotes && !readOnly ? (
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
@@ -309,14 +324,14 @@ export function StepDrawer({
               />
             ) : (
               <div
-                onClick={() => setIsEditingNotes(true)}
+                onClick={() => !readOnly && setIsEditingNotes(true)}
                 className="min-h-[5rem] rounded-xl border border-border bg-surface/50 p-3 text-xs text-foreground/90 cursor-pointer hover:border-primary/40 transition-colors prose prose-invert prose-xs max-w-none"
               >
                 {notes ? (
                   <ReactMarkdown>{notes}</ReactMarkdown>
                 ) : (
                   <span className="text-muted-foreground italic">
-                    Click to add notes in markdown...
+                    {readOnly ? 'No notes.' : 'Click to add notes in markdown...'}
                   </span>
                 )}
               </div>
@@ -324,21 +339,28 @@ export function StepDrawer({
           </div>
 
           {/* Footer Controls */}
-          <div className="flex items-center justify-between pt-4 border-t border-border/60">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleDelete}
-              className="text-danger hover:bg-danger/10 hover:text-danger text-xs gap-1.5"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              <span>Delete Step</span>
-            </Button>
+          {!readOnly && (
+            <div className="flex items-center justify-between pt-4 border-t border-border/60">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleDelete}
+                className="text-danger hover:bg-danger/10 hover:text-danger text-xs gap-1.5"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>Delete Step</span>
+              </Button>
 
-            <Button size="sm" onClick={() => handleSave()} disabled={isSaving} className="text-xs">
-              {isSaving ? 'Saving...' : 'Save Changes'}
-            </Button>
-          </div>
+              <Button
+                size="sm"
+                onClick={() => handleSave()}
+                disabled={isSaving}
+                className="text-xs"
+              >
+                {isSaving ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

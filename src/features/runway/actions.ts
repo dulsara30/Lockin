@@ -14,6 +14,9 @@ import {
   switchActiveRunway,
 } from '@/server/dal/runways';
 import { z } from 'zod';
+import { requireMissionAccess, requireRunwayAccess } from '@/server/dal/access';
+
+const dayIndexSchema = z.number().int().min(0).max(29);
 
 const createRunwaySchema = z.object({
   missionId: z.string().min(1, 'Mission is required. A runway cannot exist without a mission.'),
@@ -39,10 +42,12 @@ export async function actionCreateRunway(raw: unknown) {
       return { success: false, error: parsed.error.issues[0]?.message || 'Invalid input' };
     }
 
+    const access = await requireMissionAccess(userId, parsed.data.missionId, 'editor');
+
     const startDate = new Date();
     const deadline = new Date(startDate.getTime() + parsed.data.dayCount * 24 * 60 * 60 * 1000);
 
-    const runway = await createRunway(userId, {
+    const runway = await createRunway(access.ownerId, {
       ...parsed.data,
       startDate,
       deadline,
@@ -61,7 +66,8 @@ export async function actionCreateRunway(raw: unknown) {
 export async function actionGetRunwaysByMission(missionId: string) {
   try {
     const userId = await getRequiredUserId();
-    const runways = await getRunwaysByMission(userId, missionId);
+    const access = await requireMissionAccess(userId, missionId, 'viewer');
+    const runways = await getRunwaysByMission(access.ownerId, missionId);
     return { success: true, data: JSON.parse(JSON.stringify(runways)) };
   } catch (error) {
     return {
@@ -75,7 +81,8 @@ export async function actionGetRunwaysByMission(missionId: string) {
 export async function actionDeleteRunway(runwayId: string) {
   try {
     const userId = await getRequiredUserId();
-    await deleteRunway(userId, runwayId);
+    const access = await requireRunwayAccess(userId, runwayId, 'editor');
+    await deleteRunway(access.ownerId, runwayId);
     revalidatePath('/runway');
     revalidatePath('/missions');
     revalidatePath('/today');
@@ -88,7 +95,10 @@ export async function actionDeleteRunway(runwayId: string) {
 export async function actionStartDay(runwayId: string, dayIndex: number) {
   try {
     const userId = await getRequiredUserId();
-    const updated = await startDay(userId, runwayId, dayIndex);
+    if (!dayIndexSchema.safeParse(dayIndex).success)
+      return { success: false, error: 'Invalid day' };
+    const access = await requireRunwayAccess(userId, runwayId, 'editor');
+    const updated = await startDay(access.ownerId, runwayId, dayIndex);
     if (!updated) return { success: false, error: 'Runway not found' };
     revalidatePath('/runway');
     return { success: true, data: JSON.parse(JSON.stringify(updated)) };
@@ -100,7 +110,10 @@ export async function actionStartDay(runwayId: string, dayIndex: number) {
 export async function actionMarkDayFailed(runwayId: string, dayIndex: number) {
   try {
     const userId = await getRequiredUserId();
-    const updated = await markDayFailed(userId, runwayId, dayIndex);
+    if (!dayIndexSchema.safeParse(dayIndex).success)
+      return { success: false, error: 'Invalid day' };
+    const access = await requireRunwayAccess(userId, runwayId, 'editor');
+    const updated = await markDayFailed(access.ownerId, runwayId, dayIndex);
     if (!updated) return { success: false, error: 'Runway not found' };
     revalidatePath('/runway');
     return { success: true, data: JSON.parse(JSON.stringify(updated)) };
@@ -112,7 +125,8 @@ export async function actionMarkDayFailed(runwayId: string, dayIndex: number) {
 export async function actionSwitchActiveRunway(missionId: string, runwayId: string) {
   try {
     const userId = await getRequiredUserId();
-    const updated = await switchActiveRunway(userId, missionId, runwayId);
+    const access = await requireMissionAccess(userId, missionId, 'editor');
+    const updated = await switchActiveRunway(access.ownerId, missionId, runwayId);
     if (!updated) return { success: false, error: 'Runway not found' };
     revalidatePath('/runway');
     return { success: true, data: JSON.parse(JSON.stringify(updated)) };

@@ -30,6 +30,8 @@ import {
 } from '@/features/missions/actions';
 import { actionCreateRunway, actionDeleteRunway } from '@/features/runway/actions';
 import { toast } from 'sonner';
+import { ShareDialog, MemberItem } from '@/features/sharing/components/share-dialog';
+import { canEdit, MissionRole } from '@/lib/access';
 
 interface MissionDetailViewProps {
   missionId: string;
@@ -42,6 +44,9 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
     runways: any[];
     steps: any[];
     insights: any;
+    members: MemberItem[];
+    role: MissionRole;
+    currentUserId: string;
   } | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [showAddRunway, setShowAddRunway] = React.useState(false);
@@ -181,7 +186,11 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
     );
   }
 
-  const { mission, runways, steps } = data;
+  const { mission, runways, steps, members, currentUserId } = data;
+  const role = data.role;
+  const editable = canEdit(role);
+  const isOwner = role === 'owner';
+  const ownerName = members.find((m) => m.isOwner)?.name;
   const completedSteps = steps.filter((s) => s.status === 'done').length;
   const completionPct = steps.length > 0 ? Math.round((completedSteps / steps.length) * 100) : 0;
   const totalPlannedHours =
@@ -210,23 +219,39 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
             <h1 className="text-2xl font-extrabold tracking-tight text-foreground mt-0.5">
               {mission.title}
             </h1>
+            {!isOwner && (
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Shared by <strong>{ownerName || 'the owner'}</strong> &bull;{' '}
+                {editable ? 'You can edit' : 'View only'}
+              </p>
+            )}
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsEditingMission((prev) => !prev)}
-            className="text-xs gap-1.5 border-border bg-surface text-foreground hover:bg-surface-hover"
-          >
-            {isEditingMission ? (
-              <X className="h-3.5 w-3.5" />
-            ) : (
-              <Edit3 className="h-3.5 w-3.5 text-primary" />
-            )}
-            <span>{isEditingMission ? 'Cancel Edit' : 'Edit Mission'}</span>
-          </Button>
+          <ShareDialog
+            missionId={missionId}
+            missionTitle={mission.title}
+            myRole={role}
+            currentUserId={currentUserId}
+            initialMembers={members}
+          />
+
+          {editable && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEditingMission((prev) => !prev)}
+              className="text-xs gap-1.5 border-border bg-surface text-foreground hover:bg-surface-hover"
+            >
+              {isEditingMission ? (
+                <X className="h-3.5 w-3.5" />
+              ) : (
+                <Edit3 className="h-3.5 w-3.5 text-primary" />
+              )}
+              <span>{isEditingMission ? 'Cancel Edit' : 'Edit Mission'}</span>
+            </Button>
+          )}
 
           <Link href={`/insights?missionId=${mission._id}`}>
             <Button
@@ -239,34 +264,38 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
             </Button>
           </Link>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleToggleStatus}
-            className={`text-xs gap-1.5 ${
-              mission.status === 'completed'
-                ? 'border-lime/40 text-lime bg-lime/10'
-                : 'border-border text-muted-foreground bg-surface hover:bg-surface-hover'
-            }`}
-          >
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            <span>{mission.status === 'completed' ? 'Completed' : 'Mark Complete'}</span>
-          </Button>
+          {editable && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleToggleStatus}
+              className={`text-xs gap-1.5 ${
+                mission.status === 'completed'
+                  ? 'border-lime/40 text-lime bg-lime/10'
+                  : 'border-border text-muted-foreground bg-surface hover:bg-surface-hover'
+              }`}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              <span>{mission.status === 'completed' ? 'Completed' : 'Mark Complete'}</span>
+            </Button>
+          )}
 
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={handleDeleteMission}
-            className="text-xs gap-1.5"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            <span>Delete</span>
-          </Button>
+          {isOwner && (
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={handleDeleteMission}
+              className="text-xs gap-1.5"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Delete</span>
+            </Button>
+          )}
         </div>
       </div>
 
       {/* Inline Mission Edit Form */}
-      {isEditingMission && (
+      {editable && isEditingMission && (
         <form
           onSubmit={handleSaveMissionEdit}
           className="rounded-2xl border border-primary/40 bg-surface p-6 shadow-xl space-y-4 animate-in fade-in"
@@ -468,7 +497,7 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
 
           {/* Action buttons */}
           <div className="flex flex-wrap items-center gap-2">
-            {runways.length === 0 ? (
+            {!editable ? null : runways.length === 0 ? (
               <>
                 <Link href={`/brain-dump?missionId=${mission._id}`}>
                   <Button
@@ -517,7 +546,7 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
         </div>
 
         {/* Inline Quick Create Runway Form */}
-        {showAddRunway && runways.length === 0 && (
+        {editable && showAddRunway && runways.length === 0 && (
           <form
             onSubmit={handleCreateRunway}
             className="p-5 rounded-2xl border border-primary/40 bg-surface shadow-xl space-y-4 animate-in fade-in"
@@ -592,7 +621,9 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
               A mission can live without a runway, but creating one unlocks sequenced daily
               breakdowns, drag-and-drop planning, time tracking, and capacity forecasting.
             </p>
-            <div className="flex flex-wrap items-center justify-center gap-3">
+            <div
+              className={editable ? 'flex flex-wrap items-center justify-center gap-3' : 'hidden'}
+            >
               <Link href={`/brain-dump?missionId=${mission._id}`}>
                 <Button className="bg-primary hover:bg-primary-hover text-white text-xs gap-1.5 shadow-md shadow-primary/20">
                   <Sparkles className="h-3.5 w-3.5" />
@@ -640,14 +671,16 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
                           {runway.title}
                         </h3>
                       </div>
-                      <button
-                        type="button"
-                        onClick={(e) => handleDeleteRunway(runway._id, e)}
-                        className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-danger rounded transition-opacity"
-                        title="Delete Runway"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {editable && (
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteRunway(runway._id, e)}
+                          className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-danger rounded transition-opacity"
+                          title="Delete Runway"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-3 text-xs text-muted-foreground font-mono">

@@ -32,6 +32,8 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { StepData, StepDrawer } from '@/features/steps/components/step-drawer';
+import { canEdit, MissionRole } from '@/lib/access';
+import { ExportMenu } from '@/features/export/components/export-menu';
 import { ConfirmStartDayModal } from './confirm-start-day-modal';
 import { ReplanModal } from './replan-modal';
 import {
@@ -68,6 +70,7 @@ interface DayPipelineViewProps {
   dayIndex: number;
   initialSteps: StepData[];
   dailyCapacityMin: number;
+  role?: MissionRole;
 }
 
 const LANES = [
@@ -104,12 +107,15 @@ const LANES = [
 function DraggableStepCard({
   step,
   onSelect,
+  readOnly = false,
 }: {
   step: StepData;
   onSelect: (s: StepData) => void;
+  readOnly?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: step._id,
+    disabled: readOnly,
   });
 
   if (isDragging) {
@@ -128,7 +134,8 @@ function DraggableStepCard({
       {...attributes}
       onClick={() => onSelect(step)}
       className={cn(
-        'p-3.5 rounded-xl border border-border bg-surface hover:border-primary/50 transition-all cursor-grab active:cursor-grabbing text-xs space-y-2 shadow-sm select-none',
+        'p-3.5 rounded-xl border border-border bg-surface hover:border-primary/50 transition-all text-xs space-y-2 shadow-sm select-none',
+        readOnly ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing',
         step.status === 'done' && 'opacity-70 bg-surface/40'
       )}
     >
@@ -173,6 +180,7 @@ function StatusLane({
   steps,
   onSelectStep,
   onAddInline,
+  readOnly = false,
 }: {
   laneId: 'todo' | 'doing' | 'blocked' | 'done';
   title: string;
@@ -182,6 +190,7 @@ function StatusLane({
   steps: StepData[];
   onSelectStep: (step: StepData) => void;
   onAddInline?: (title: string) => void;
+  readOnly?: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: laneId,
@@ -222,7 +231,12 @@ function StatusLane({
       {/* Cards List */}
       <div className="flex-1 space-y-2.5 overflow-y-auto min-h-[200px]">
         {steps.map((step) => (
-          <DraggableStepCard key={step._id} step={step} onSelect={onSelectStep} />
+          <DraggableStepCard
+            key={step._id}
+            step={step}
+            onSelect={onSelectStep}
+            readOnly={readOnly}
+          />
         ))}
 
         {steps.length === 0 && !isAdding && (
@@ -285,8 +299,10 @@ export function DayPipelineView({
   dayIndex,
   initialSteps,
   dailyCapacityMin,
+  role = 'owner',
 }: DayPipelineViewProps) {
   const router = useRouter();
+  const readOnly = !canEdit(role);
   const [steps, setSteps] = React.useState<StepData[]>(initialSteps);
   const [activeStep, setActiveStep] = React.useState<StepData | null>(null);
   const [selectedStep, setSelectedStep] = React.useState<StepData | null>(null);
@@ -516,7 +532,7 @@ export function DayPipelineView({
 
         {/* 24-Hour Timer Status / Start Day Trigger */}
         <div className="flex items-center gap-3">
-          {!dayStartTime ? (
+          {!dayStartTime && readOnly ? null : !dayStartTime ? (
             <Button
               onClick={() => setIsConfirmStartOpen(true)}
               className="bg-primary hover:bg-primary-hover text-white text-xs gap-1.5 shadow-md shadow-primary/20"
@@ -549,15 +565,20 @@ export function DayPipelineView({
             </div>
           )}
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsReplanOpen(true)}
-            className="text-xs gap-1.5 border-border bg-surface hover:bg-surface-hover text-warning"
-          >
-            <Sparkles className="h-3.5 w-3.5 text-warning" />
-            <span>Re-plan</span>
-          </Button>
+          {/* Exports only this day; available to every member, including view-only */}
+          <ExportMenu runwayId={runway._id} dayIndex={dayIndex} />
+
+          {!readOnly && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsReplanOpen(true)}
+              className="text-xs gap-1.5 border-border bg-surface hover:bg-surface-hover text-warning"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-warning" />
+              <span>Re-plan</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -578,14 +599,16 @@ export function DayPipelineView({
               </p>
             </div>
           </div>
-          <Button
-            size="sm"
-            onClick={() => setIsReplanOpen(true)}
-            className="bg-danger hover:bg-danger/90 text-white text-xs gap-1.5 shrink-0"
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>Re-plan Runway to Mitigate Drag</span>
-          </Button>
+          {!readOnly && (
+            <Button
+              size="sm"
+              onClick={() => setIsReplanOpen(true)}
+              className="bg-danger hover:bg-danger/90 text-white text-xs gap-1.5 shrink-0"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Re-plan Runway to Mitigate Drag</span>
+            </Button>
+          )}
         </div>
       )}
 
@@ -599,7 +622,7 @@ export function DayPipelineView({
         }}
         onDragEnd={(e) => {
           setActiveStep(null);
-          handleDragEnd(e);
+          if (!readOnly) handleDragEnd(e);
         }}
       >
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -615,7 +638,8 @@ export function DayPipelineView({
                 lane.id === 'todo' ? s.status === 'todo' || !s.status : s.status === lane.id
               )}
               onSelectStep={(s) => setSelectedStep(s)}
-              onAddInline={lane.id === 'todo' ? handleAddInline : undefined}
+              readOnly={readOnly}
+              onAddInline={lane.id === 'todo' && !readOnly ? handleAddInline : undefined}
             />
           ))}
         </div>
@@ -643,6 +667,7 @@ export function DayPipelineView({
 
       {/* Step Detail Drawer */}
       <StepDrawer
+        readOnly={readOnly}
         isOpen={!!selectedStep}
         step={selectedStep}
         onClose={() => setSelectedStep(null)}

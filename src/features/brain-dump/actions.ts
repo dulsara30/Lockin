@@ -17,6 +17,8 @@ import { createMission, getMissionById, updateMission } from '@/server/dal/missi
 import { createRunway, getRunwayByMission, getRunwaysByMission } from '@/server/dal/runways';
 import { createStep, getStepsByMission } from '@/server/dal/steps';
 import { getTodayDashboardData } from '@/server/dal/today';
+import { requireMissionAccess } from '@/server/dal/access';
+import { planSchema } from '@/lib/templates/parser';
 import { generateKeyBetween } from 'fractional-indexing';
 import { revalidatePath } from 'next/cache';
 
@@ -120,7 +122,9 @@ export async function confirmAndSavePlanAction(planData: unknown) {
     missionId: targetMissionId,
     runwayTitle,
   } = parsed.data;
-  const userId = session.user.id;
+  const actorId = session.user.id;
+  // Data lives under the mission owner's tenant; editors write into the owner's workspace
+  let userId = actorId;
 
   try {
     const startDate = new Date();
@@ -131,6 +135,8 @@ export async function confirmAndSavePlanAction(planData: unknown) {
 
     // 1. Resolve or Create Mission (A runway CANNOT exist without a mission)
     if (targetMissionId) {
+      const access = await requireMissionAccess(actorId, targetMissionId, 'editor');
+      userId = access.ownerId;
       const existing = await getMissionById(userId, targetMissionId);
       if (!existing) {
         return { success: false, error: 'Selected mission does not exist.' };
@@ -208,10 +214,12 @@ export async function replanMissionAction(missionId: string, hoursPerDay = 4) {
   const userId = session.user.id;
 
   try {
+    const access = await requireMissionAccess(userId, missionId, 'editor');
+    const ownerId = access.ownerId;
     const [steps, mission, activeRunway] = await Promise.all([
-      getStepsByMission(userId, missionId),
-      getMissionById(userId, missionId),
-      getRunwayByMission(userId, missionId),
+      getStepsByMission(ownerId, missionId),
+      getMissionById(ownerId, missionId),
+      getRunwayByMission(ownerId, missionId),
     ]);
 
     const incompleteSteps = steps.filter((s) => s.status !== 'done' && s.status !== 'skipped');
@@ -271,14 +279,21 @@ export async function replanMissionAction(missionId: string, hoursPerDay = 4) {
   }
 }
 
-export async function applyReplanAction(missionId: string, plan: ParsedPlan) {
+export async function applyReplanAction(missionId: string, rawPlan: ParsedPlan) {
   const session = await auth();
   if (!session?.user?.id) {
     return { success: false, error: 'Unauthorized. Please log in.' };
   }
-  const userId = session.user.id;
+
+  const parsedPlan = planSchema.safeParse(rawPlan);
+  if (!parsedPlan.success) {
+    return { success: false, error: parsedPlan.error.issues[0]?.message || 'Invalid plan.' };
+  }
+  const plan = parsedPlan.data;
 
   try {
+    const access = await requireMissionAccess(session.user.id, missionId, 'editor');
+    const userId = access.ownerId;
     const existingRunways = await getRunwaysByMission(userId, missionId);
     const nextVersion =
       existingRunways.length > 0 ? Math.max(...existingRunways.map((r) => r.version || 1)) + 1 : 2;

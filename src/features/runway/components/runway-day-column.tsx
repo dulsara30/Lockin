@@ -23,6 +23,7 @@ interface RunwayDayColumnProps {
   onAddStepInline: (dayIndex: number, title: string) => void;
   onQuickToggleStatus?: (stepId: string, currentStatus: StepData['status']) => void;
   onStartDay?: (dayIndex: number) => void;
+  readOnly?: boolean;
 }
 
 export function RunwayDayColumn({
@@ -37,6 +38,7 @@ export function RunwayDayColumn({
   onAddStepInline,
   onQuickToggleStatus,
   onStartDay,
+  readOnly = false,
 }: RunwayDayColumnProps) {
   const [isAdding, setIsAdding] = React.useState(false);
   const [newTitle, setNewTitle] = React.useState('');
@@ -159,7 +161,7 @@ export function RunwayDayColumn({
           </Link>
 
           <div className="flex items-center gap-1.5">
-            {!dayStartTime && onStartDay && !isFinished && (
+            {!readOnly && !dayStartTime && onStartDay && !isFinished && (
               <button
                 type="button"
                 onClick={() => onStartDay(dayIndex)}
@@ -244,6 +246,7 @@ export function RunwayDayColumn({
               step={step}
               onSelect={onSelectStep}
               onQuickToggleStatus={onQuickToggleStatus}
+              readOnly={readOnly}
             />
           ))}
         </SortableContext>
@@ -256,7 +259,7 @@ export function RunwayDayColumn({
       </div>
 
       {/* Inline Add Step */}
-      <div className="pt-2 border-t border-border/50">
+      <div className={cn('pt-2 border-t border-border/50', readOnly && 'hidden')}>
         {isAdding ? (
           <form onSubmit={handleInlineSubmit} className="space-y-2">
             <Input

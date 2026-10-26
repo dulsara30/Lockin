@@ -24,6 +24,7 @@ import {
   FileCode,
   Sliders,
   ShieldCheck,
+  Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -62,7 +63,7 @@ const FEATURES: FeatureTab[] = [
       'Deleting a mission safely removes all associated runways and tasks with confirmation.',
     ],
     systemAction:
-      'The data-access layer enforces that every single query requires userId and missionId, ensuring total tenant isolation and preventing orphan tasks.',
+      'The data-access layer enforces that every single query requires a userId (the mission owner workspace) and missionId, ensuring total tenant isolation and preventing orphan tasks. Collaborators reach an owner mission only through an explicit, revocable grant.',
     actionUrl: '/missions/new',
     actionLabel: 'Create a Mission',
   },
@@ -204,6 +205,29 @@ const FEATURES: FeatureTab[] = [
     actionUrl: '/insights',
     actionLabel: 'View Analytics',
   },
+  {
+    id: 'sharing',
+    name: '8. Sharing & Roles',
+    tagline: 'Collaborate on a Mission with Least-Privilege Access',
+    icon: Users,
+    color: 'text-primary',
+    description:
+      'Share any mission you own with other Lockin users by email. Each person gets exactly one role, and the owner can change or revoke it at any time.',
+    whatItDoes: [
+      'Owner: full control, including sharing, changing roles, removing people, archiving and deleting.',
+      'Can edit: do everything in the mission (steps, runways, re-plans, time tracking) except manage people, archive or delete it.',
+      'Can view: see the exact same UI in read-only mode. All controls are disabled and every write is rejected by the server.',
+    ],
+    howItWorks: [
+      'Open a mission, click Share, enter the email of a teammate (they need a Lockin account), and pick Can view or Can edit.',
+      'Use the Missions page filters: My Missions shows what you own, Shared with me shows what others gave you.',
+      'Owners see every member in the dialog, can switch roles instantly or remove someone; members can leave on their own.',
+    ],
+    systemAction:
+      'Permissions are re-checked on the server for every single request (never trusted from the browser or cached in the session), so removing someone takes effect immediately. Non-members get "not found" so private missions are never revealed. Membership changes are written to the activity log.',
+    actionUrl: '/missions',
+    actionLabel: 'Open Missions',
+  },
 ];
 
 export function HowItWorksView() {
@@ -235,6 +259,11 @@ export function HowItWorksView() {
       num: '05',
       title: 'Re-plan if Overdue',
       desc: 'If 24h lapses or life happens, use AI Re-plan to re-balance remaining work into a new version.',
+    },
+    {
+      num: '06',
+      title: 'Share & Collaborate',
+      desc: 'Invite teammates by email as editors or viewers. Change or revoke access whenever you want.',
     },
   ];
 
@@ -442,7 +471,7 @@ export function HowItWorksView() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {stepsList.map((step, idx) => {
             const isCurrent = activeStepIndex === idx;
 

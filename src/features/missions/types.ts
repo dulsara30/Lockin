@@ -23,4 +23,5 @@ export interface MissionWithRunway {
   totalEstimateMin?: number;
   completedEstimateMin?: number;
   health?: string;
+  role?: 'owner' | 'editor' | 'viewer';
 }

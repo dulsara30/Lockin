@@ -2,7 +2,17 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { Target, Plus, Calendar, Route, CheckCircle2, ArrowRight } from 'lucide-react';
+import {
+  Target,
+  Plus,
+  Calendar,
+  Route,
+  CheckCircle2,
+  ArrowRight,
+  Users,
+  Eye,
+  Pencil,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { actionGetMissions } from '@/features/missions/actions';
 import { toast } from 'sonner';
@@ -20,11 +30,17 @@ export interface MissionListItem {
   stepCount?: number;
   completedStepCount?: number;
   runwayId?: string;
+  role?: 'owner' | 'editor' | 'viewer';
+  ownerName?: string;
+  memberCount?: number;
 }
+
+type MissionFilter = 'all' | 'mine' | 'shared';
 
 export function MissionsListView() {
   const [missions, setMissions] = React.useState<MissionListItem[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [filter, setFilter] = React.useState<MissionFilter>('all');
 
   const fetchMissions = async () => {
     setIsLoading(true);
@@ -40,6 +56,13 @@ export function MissionsListView() {
   React.useEffect(() => {
     fetchMissions();
   }, []);
+
+  const mineCount = missions.filter((m) => (m.role ?? 'owner') === 'owner').length;
+  const sharedCount = missions.length - mineCount;
+  const visible = missions.filter((m) => {
+    const isMine = (m.role ?? 'owner') === 'owner';
+    return filter === 'all' ? true : filter === 'mine' ? isMine : !isMine;
+  });
 
   return (
     <div className="space-y-6">
@@ -59,6 +82,31 @@ export function MissionsListView() {
         </Link>
       </div>
 
+      <div className="flex items-center gap-1.5" role="tablist" aria-label="Mission filter">
+        {(
+          [
+            ['all', 'All', missions.length],
+            ['mine', 'My Missions', mineCount],
+            ['shared', 'Shared with me', sharedCount],
+          ] as const
+        ).map(([key, label, count]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={filter === key}
+            onClick={() => setFilter(key)}
+            className={`px-3 py-1.5 rounded-xl border text-xs font-semibold transition-colors ${
+              filter === key
+                ? 'border-primary bg-primary/15 text-foreground'
+                : 'border-border bg-surface text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {label} <span className="font-mono opacity-70">{count}</span>
+          </button>
+        ))}
+      </div>
+
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => (
@@ -68,12 +116,14 @@ export function MissionsListView() {
             />
           ))}
         </div>
-      ) : missions.length === 0 ? (
+      ) : visible.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border/80 bg-surface/30 p-12 text-center max-w-lg mx-auto">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 border border-primary/20 text-primary mb-4">
             <Target className="h-6 w-6" />
           </div>
-          <h3 className="text-base font-bold text-foreground">No missions created yet</h3>
+          <h3 className="text-base font-bold text-foreground">
+            {filter === 'shared' ? 'Nothing shared with you yet' : 'No missions created yet'}
+          </h3>
           <p className="text-xs text-muted-foreground mt-1 mb-6">
             Missions are the foundation of your plan. Break large initiatives into structured
             timeframes.
@@ -87,7 +137,7 @@ export function MissionsListView() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {missions.map((mission) => {
+          {visible.map((mission) => {
             const completedCount = mission.completedStepCount || 0;
             const totalCount = mission.stepCount || 0;
             const percent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
@@ -109,6 +159,22 @@ export function MissionsListView() {
                       <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground truncate">
                         {mission.category || 'Initiative'}
                       </span>
+                      {mission.role && mission.role !== 'owner' && (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-info/30 bg-info/10 px-2 py-0.5 text-[10px] font-semibold text-info">
+                          {mission.role === 'editor' ? (
+                            <Pencil className="h-2.5 w-2.5" />
+                          ) : (
+                            <Eye className="h-2.5 w-2.5" />
+                          )}
+                          <span>{mission.role === 'editor' ? 'Can edit' : 'View only'}</span>
+                        </span>
+                      )}
+                      {mission.role === 'owner' && (mission.memberCount || 0) > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                          <Users className="h-2.5 w-2.5" />
+                          <span>{mission.memberCount}</span>
+                        </span>
+                      )}
                     </div>
                     <span
                       className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
@@ -126,6 +192,12 @@ export function MissionsListView() {
                   <h3 className="text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">
                     {mission.title}
                   </h3>
+
+                  {mission.role && mission.role !== 'owner' && mission.ownerName && (
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Shared by {mission.ownerName}
+                    </p>
+                  )}
 
                   {mission.description && (
                     <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">
