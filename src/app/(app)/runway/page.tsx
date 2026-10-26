@@ -2,6 +2,8 @@ import { Metadata } from 'next';
 import { auth } from '@/lib/auth';
 import { actionGetMissions } from '@/features/missions/actions';
 import { getMissionById } from '@/server/dal/missions';
+import { getMissionAccess } from '@/server/dal/access';
+import { canEdit } from '@/lib/access';
 import { getRunwayByMission, getRunwaysByMission, getRunwayById } from '@/server/dal/runways';
 import { getStepsByMission } from '@/server/dal/steps';
 import { getUserSettings } from '@/server/dal/settings';
@@ -35,18 +37,21 @@ export default async function RunwayPage({ searchParams }: RunwayPageProps) {
   }
 
   // Case 2: Mission selected -> Find mission
-  const activeMission = await getMissionById(userId, resolvedParams.missionId);
-  if (!activeMission) {
+  const access = await getMissionAccess(userId, resolvedParams.missionId);
+  const activeMission = access ? await getMissionById(access.ownerId, access.missionId) : null;
+  if (!access || !activeMission) {
     return <RunwayMissionSelector missions={missions} />;
   }
 
   // Get all runways/versions for this mission
-  const runwaysList = await getRunwaysByMission(userId, activeMission._id.toString());
+  const ownerId = access.ownerId;
+  const role = access.role;
+  const runwaysList = await getRunwaysByMission(ownerId, activeMission._id.toString());
 
   // Determine current active or selected runway
   let runway = null;
   if (resolvedParams.runwayId) {
-    runway = await getRunwayById(userId, resolvedParams.runwayId);
+    runway = await getRunwayById(ownerId, resolvedParams.runwayId);
   }
   if (!runway) {
     runway = runwaysList.find((r) => r.isActive) || runwaysList[runwaysList.length - 1] || null;
@@ -81,7 +86,9 @@ export default async function RunwayPage({ searchParams }: RunwayPageProps) {
             A runway cannot exist without a mission. This mission is active, but you have not yet
             initialized its execution runway.
           </p>
-          <div className="flex items-center justify-center gap-3">
+          <div
+            className={canEdit(access.role) ? 'flex items-center justify-center gap-3' : 'hidden'}
+          >
             <Link href={`/missions/${activeMission._id}`}>
               <Button className="bg-primary hover:bg-primary-hover text-white text-xs gap-2 shadow-md shadow-primary/25">
                 <Plus className="h-4 w-4" />
@@ -101,7 +108,7 @@ export default async function RunwayPage({ searchParams }: RunwayPageProps) {
   }
 
   // Case 4: Runway exists -> Load its steps and render the pipeline
-  const steps = await getStepsByMission(userId, activeMission._id.toString());
+  const steps = await getStepsByMission(ownerId, activeMission._id.toString());
 
   return (
     <div className="space-y-6">
@@ -112,6 +119,7 @@ export default async function RunwayPage({ searchParams }: RunwayPageProps) {
         initialSteps={JSON.parse(JSON.stringify(steps))}
         missionsList={JSON.parse(JSON.stringify(missions))}
         dailyCapacityMin={dailyCapacityMin}
+        role={role}
       />
     </div>
   );

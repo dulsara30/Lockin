@@ -63,8 +63,9 @@ import {
   FileText,
 } from 'lucide-react';
 import { saveMissionAsTemplateAction } from '@/features/templates/actions';
-import { exportMissionMarkdownAction } from '@/features/settings/actions';
+import { ExportMenu } from '@/features/export/components/export-menu';
 import { toast } from 'sonner';
+import { canEdit, MissionRole } from '@/lib/access';
 
 export interface MissionData {
   _id: string;
@@ -99,6 +100,7 @@ interface RunwayPipelineProps {
   initialSteps: StepData[];
   missionsList?: MissionData[];
   dailyCapacityMin?: number;
+  role?: MissionRole;
 }
 
 function safeOrderBetween(
@@ -122,8 +124,10 @@ export function RunwayPipeline({
   initialSteps,
   missionsList = [],
   dailyCapacityMin = 240,
+  role = 'owner',
 }: RunwayPipelineProps) {
   const router = useRouter();
+  const readOnly = !canEdit(role);
   const [steps, setSteps] = React.useState<StepData[]>(initialSteps);
   const [activeStep, setActiveStep] = React.useState<StepData | null>(null);
   const [selectedStep, setSelectedStep] = React.useState<StepData | null>(null);
@@ -139,9 +143,7 @@ export function RunwayPipeline({
   const [isRolloverOpen, setIsRolloverOpen] = React.useState(false);
   const [isReplanOpen, setIsReplanOpen] = React.useState(false);
   const [isReplanConfirmOpen, setIsReplanConfirmOpen] = React.useState(false);
-  const [isExportConfirmOpen, setIsExportConfirmOpen] = React.useState(false);
   const [isDeleteRunwayConfirmOpen, setIsDeleteRunwayConfirmOpen] = React.useState(false);
-  const [isExporting, setIsExporting] = React.useState(false);
   const [isDeletingRunway, setIsDeletingRunway] = React.useState(false);
 
   const [currentDayIndex, setCurrentDayIndex] = React.useState(0);
@@ -198,7 +200,7 @@ export function RunwayPipeline({
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveStep(null);
-    if (!over) return;
+    if (!over || readOnly) return;
 
     const activeId = String(active.id);
     const overId = String(over.id);
@@ -320,30 +322,6 @@ export function RunwayPipeline({
     }
   };
 
-  const handleExecuteExportMarkdown = async () => {
-    setIsExporting(true);
-    try {
-      const res = await exportMissionMarkdownAction(mission._id);
-      if (res.success && res.markdown && res.filename) {
-        const blob = new Blob([res.markdown], { type: 'text/markdown' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = res.filename;
-        a.click();
-        URL.revokeObjectURL(url);
-        toast.success('Mission runway exported as Markdown.');
-        setIsExportConfirmOpen(false);
-      } else {
-        toast.error(res.error || 'Export failed');
-      }
-    } catch {
-      toast.error('Error exporting markdown');
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
   const handleExecuteDeleteRunway = async () => {
     if (!runway?._id) return;
     setIsDeletingRunway(true);
@@ -395,6 +373,10 @@ export function RunwayPipeline({
 
   const handleSwitchVersion = async (targetRunwayId: string) => {
     if (targetRunwayId === runway?._id) return;
+    if (readOnly) {
+      router.push(`/runway?missionId=${mission._id}&runwayId=${targetRunwayId}`);
+      return;
+    }
     try {
       const res = await actionSwitchActiveRunway(mission._id, targetRunwayId);
       if (res.success) {
@@ -513,16 +495,18 @@ export function RunwayPipeline({
             </Button>
           </Link>
 
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={() => setIsDeleteRunwayConfirmOpen(true)}
-            className="text-xs gap-1.5"
-            title="Delete this Runway"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Delete Runway</span>
-          </Button>
+          {!readOnly && (
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => setIsDeleteRunwayConfirmOpen(true)}
+              className="text-xs gap-1.5"
+              title="Delete this Runway"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Delete Runway</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -538,6 +522,11 @@ export function RunwayPipeline({
               {runway?.title || `${mission.title} Runway`}
             </h1>
             {getHealthBadge(health.health)}
+            {role !== 'owner' && (
+              <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border border-border bg-surface text-muted-foreground">
+                {readOnly ? 'View only' : 'Editor'}
+              </span>
+            )}
           </div>
           <p className="text-xs text-muted-foreground flex items-center gap-2">
             <span>
@@ -556,50 +545,52 @@ export function RunwayPipeline({
         {/* Action Controls */}
         <div className="flex items-center gap-2.5">
           {/* Re-plan Trigger (Opens Confirmation Modal first) */}
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setIsReplanConfirmOpen(true)}
-            className="text-xs gap-1.5 bg-surface border-border hover:bg-surface-hover text-warning"
-          >
-            <Sparkles className="h-3.5 w-3.5 text-warning" />
-            <span>Re-plan</span>
-          </Button>
+          {!readOnly && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setIsReplanConfirmOpen(true)}
+              className="text-xs gap-1.5 bg-surface border-border hover:bg-surface-hover text-warning"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-warning" />
+              <span>Re-plan</span>
+            </Button>
+          )}
 
           {/* Save Template */}
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleSaveAsTemplate}
-            className="text-xs gap-1.5 bg-surface border-border hover:bg-surface-hover"
-            title="Save as reusable blueprint"
-          >
-            <LayoutTemplate className="h-3.5 w-3.5 text-info" />
-            <span className="hidden sm:inline">Template</span>
-          </Button>
+          {role === 'owner' && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleSaveAsTemplate}
+              className="text-xs gap-1.5 bg-surface border-border hover:bg-surface-hover"
+              title="Save as reusable blueprint"
+            >
+              <LayoutTemplate className="h-3.5 w-3.5 text-info" />
+              <span className="hidden sm:inline">Template</span>
+            </Button>
+          )}
 
-          {/* Export Markdown (Opens Confirmation Modal first) */}
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setIsExportConfirmOpen(true)}
-            className="text-xs gap-1.5 bg-surface border-border hover:bg-surface-hover"
-            title="Download as Markdown file"
-          >
-            <Download className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="hidden sm:inline">Export</span>
-          </Button>
+          {/* Export (all days; available to every member, including view-only) */}
+          {runway?._id && (
+            <ExportMenu
+              runwayId={runway._id}
+              className="text-xs gap-1.5 bg-surface border-border hover:bg-surface-hover"
+            />
+          )}
 
           {/* Roll Over Trigger */}
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setIsRolloverOpen(true)}
-            className="text-xs gap-1.5 bg-surface border-border hover:bg-surface-hover"
-          >
-            <RotateCw className="h-3.5 w-3.5 text-primary" />
-            <span>Roll Over</span>
-          </Button>
+          {!readOnly && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setIsRolloverOpen(true)}
+              className="text-xs gap-1.5 bg-surface border-border hover:bg-surface-hover"
+            >
+              <RotateCw className="h-3.5 w-3.5 text-primary" />
+              <span>Roll Over</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -634,6 +625,7 @@ export function RunwayPipeline({
                   dailyCapacityMin={dailyCapacityMin}
                   dayStartTime={dayStart}
                   isFailed={isDayFailed}
+                  readOnly={readOnly}
                   onSelectStep={(s) => setSelectedStep(s)}
                   onAddStepInline={handleAddStepInline}
                   onQuickToggleStatus={handleQuickToggleStatus}
@@ -656,6 +648,7 @@ export function RunwayPipeline({
 
       {/* Step Edit & Timer Drawer */}
       <StepDrawer
+        readOnly={readOnly}
         isOpen={!!selectedStep}
         step={selectedStep}
         onClose={() => setSelectedStep(null)}
@@ -712,54 +705,6 @@ export function RunwayPipeline({
             >
               <Sparkles className="h-3.5 w-3.5" />
               <span>Proceed to Re-plan</span>
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Confirmation Modal 2: Export Markdown Confirmation */}
-      <Dialog open={isExportConfirmOpen} onOpenChange={setIsExportConfirmOpen}>
-        <DialogContent className="max-w-md bg-surface border-border p-6 shadow-2xl">
-          <DialogHeader className="space-y-1">
-            <div className="flex items-center gap-2 text-primary font-semibold text-sm">
-              <FileText className="h-4 w-4" />
-              <span>Export Runway Pipeline</span>
-            </div>
-            <DialogTitle className="text-base font-bold text-foreground">
-              Download Markdown Document?
-            </DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground leading-relaxed pt-1">
-              This action will compile the complete runway pipeline for &ldquo;{mission.title}
-              &rdquo; into a clean GitHub Flavored Markdown (.md) document and download it to your
-              computer.
-              <br />
-              <br />
-              • Includes day-by-day sequenced step checklists.
-              <br />
-              • Includes time estimates, notes, and priority badges.
-              <br />• Zero cost, completely offline, and compatible with Notion or Obsidian.
-            </DialogDescription>
-          </DialogHeader>
-
-          <DialogFooter className="pt-3 border-t border-border/60 gap-2 sm:gap-0">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsExportConfirmOpen(false)}
-              className="text-xs"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              disabled={isExporting}
-              onClick={handleExecuteExportMarkdown}
-              className="text-xs bg-primary hover:bg-primary-hover text-white gap-1.5"
-            >
-              <Download className="h-3.5 w-3.5" />
-              <span>{isExporting ? 'Exporting...' : 'Download Markdown'}</span>
             </Button>
           </DialogFooter>
         </DialogContent>

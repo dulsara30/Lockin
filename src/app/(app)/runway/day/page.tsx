@@ -2,6 +2,7 @@ import { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { getMissionById } from '@/server/dal/missions';
+import { getMissionAccess } from '@/server/dal/access';
 import { getRunwayByMission } from '@/server/dal/runways';
 import { getStepsByMission } from '@/server/dal/steps';
 import { getUserSettings } from '@/server/dal/settings';
@@ -28,11 +29,17 @@ export default async function DayPipelinePage({ searchParams }: DayPipelinePageP
     redirect('/runway');
   }
 
+  const access = await getMissionAccess(userId, missionId);
+  if (!access) {
+    redirect('/runway');
+  }
+  const ownerId = access.ownerId;
+
   const [mission, runway, settings, steps] = await Promise.all([
-    getMissionById(userId, missionId),
-    getRunwayByMission(userId, missionId),
+    getMissionById(ownerId, missionId),
+    getRunwayByMission(ownerId, missionId),
     getUserSettings(userId),
-    getStepsByMission(userId, missionId),
+    getStepsByMission(ownerId, missionId),
   ]);
 
   if (!mission || !runway) {
@@ -75,6 +82,7 @@ export default async function DayPipelinePage({ searchParams }: DayPipelinePageP
         dayIndex={dayIndex}
         initialSteps={JSON.parse(JSON.stringify(daySteps))}
         dailyCapacityMin={dailyCapacityMin}
+        role={access.role}
       />
     </div>
   );

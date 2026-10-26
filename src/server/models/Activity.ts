@@ -1,6 +1,14 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
-export type ActivityEventType = 'created' | 'moved' | 'completed' | 'rolled_over';
+export type ActivityEventType =
+  | 'created'
+  | 'moved'
+  | 'completed'
+  | 'rolled_over'
+  | 'status_changed'
+  | 'member_added'
+  | 'member_role_changed'
+  | 'member_removed';
 
 export interface IActivity extends Document {
   _id: mongoose.Types.ObjectId;
@@ -22,7 +30,16 @@ const ActivitySchema = new Schema<IActivity>(
     },
     type: {
       type: String,
-      enum: ['created', 'moved', 'completed', 'rolled_over'],
+      enum: [
+        'created',
+        'moved',
+        'completed',
+        'rolled_over',
+        'status_changed',
+        'member_added',
+        'member_role_changed',
+        'member_removed',
+      ],
       required: true,
     },
     missionId: {

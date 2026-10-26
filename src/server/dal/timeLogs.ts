@@ -18,7 +18,21 @@ export async function startTimeLog(userId: string, stepId: string, missionId?: s
   return log.toObject();
 }
 
-export async function stopTimeLog(userId: string, logId: string, durationSec: number) {
+export async function getTimeLogById(userId: string, logId: string) {
+  if (!userId) throw new Error('Security Error: userId is required');
+  if (!logId) throw new Error('logId is required');
+  await connectDB();
+
+  return await TimeLog.findOne({ _id: logId, userId }).lean().exec();
+}
+
+/** `stepOwnerId` is the mission owner (tenant of the step) when the actor is a collaborator. */
+export async function stopTimeLog(
+  userId: string,
+  logId: string,
+  durationSec: number,
+  stepOwnerId: string = userId
+) {
   if (!userId) throw new Error('Security Error: userId is required');
   if (!logId) throw new Error('logId is required');
   await connectDB();
@@ -37,7 +51,7 @@ export async function stopTimeLog(userId: string, logId: string, durationSec: nu
     const additionalMin = Math.round(durationSec / 60);
     if (additionalMin > 0) {
       await Step.findOneAndUpdate(
-        { _id: updatedLog.stepId, userId },
+        { _id: updatedLog.stepId, userId: stepOwnerId },
         { $inc: { actualMin: additionalMin } }
       ).exec();
     }

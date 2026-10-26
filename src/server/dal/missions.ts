@@ -3,6 +3,7 @@ import { Mission, IMission, MissionPriority, MissionStatus } from '@/server/mode
 import { Runway } from '@/server/models/Runway';
 import { Step } from '@/server/models/Step';
 import { Activity } from '@/server/models/Activity';
+import { MissionMember } from '@/server/models/MissionMember';
 
 export interface CreateMissionDTO {
   title: string;
@@ -112,6 +113,7 @@ export async function deleteMission(userId: string, missionId: string) {
   await Step.deleteMany({ missionId, userId }).exec();
   await Runway.deleteMany({ missionId, userId }).exec();
   await Activity.deleteMany({ missionId, userId }).exec();
+  await MissionMember.deleteMany({ missionId, ownerId: userId }).exec();
 
   const deleted = await Mission.findOneAndDelete({ _id: missionId, userId }).lean().exec();
   return deleted;

@@ -25,6 +25,7 @@ interface LockinStep {
 
 interface LockinModeViewProps {
   step: LockinStep | null;
+  readOnly?: boolean;
 }
 
 type TimerState = 'idle' | 'running' | 'paused';
@@ -37,7 +38,7 @@ function formatTime(seconds: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-export function LockinModeView({ step }: LockinModeViewProps) {
+export function LockinModeView({ step, readOnly = false }: LockinModeViewProps) {
   const router = useRouter();
   const [timerState, setTimerState] = React.useState<TimerState>('idle');
   const [elapsed, setElapsed] = React.useState(0);
@@ -62,7 +63,7 @@ export function LockinModeView({ step }: LockinModeViewProps) {
 
     setTimerState('running');
 
-    const res = await actionStartTimeLog(step._id, step.missionId);
+    const res = await actionStartTimeLog(step._id);
     if (res.success && res.data) {
       setLogId(res.data._id);
     }
@@ -211,7 +212,13 @@ export function LockinModeView({ step }: LockinModeViewProps) {
 
       {/* Timer Controls */}
       <div className="flex items-center gap-4">
-        {timerState === 'idle' && (
+        {readOnly && (
+          <p className="text-xs text-muted-foreground border border-border rounded-xl px-4 py-2.5 bg-surface">
+            View-only access. Ask the mission owner for edit access to track time.
+          </p>
+        )}
+
+        {!readOnly && timerState === 'idle' && (
           <Button
             onClick={handleStart}
             size="lg"
@@ -222,7 +229,7 @@ export function LockinModeView({ step }: LockinModeViewProps) {
           </Button>
         )}
 
-        {timerState === 'running' && (
+        {!readOnly && timerState === 'running' && (
           <>
             <Button onClick={handlePause} variant="secondary" size="lg" className="gap-2 text-sm">
               <Pause className="h-4 w-4 fill-current" />
@@ -240,7 +247,7 @@ export function LockinModeView({ step }: LockinModeViewProps) {
           </>
         )}
 
-        {timerState === 'paused' && (
+        {!readOnly && timerState === 'paused' && (
           <>
             <Button
               onClick={handleStart}
