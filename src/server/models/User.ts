@@ -3,7 +3,7 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 export interface IUser extends Document {
   _id: mongoose.Types.ObjectId;
   email: string;
-  passwordHash: string;
+  passwordHash?: string; // absent for Google-only accounts
   name?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -21,7 +21,6 @@ const UserSchema = new Schema<IUser>(
     },
     passwordHash: {
       type: String,
-      required: true,
     },
     name: {
       type: String,
