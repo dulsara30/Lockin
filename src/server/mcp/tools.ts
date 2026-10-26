@@ -26,6 +26,7 @@ import {
   getRunwayByMission,
   getRunwaysByMission,
   startDay,
+  syncMissionToRunway,
   updateRunway,
   switchActiveRunway,
 } from '@/server/dal/runways';
@@ -288,6 +289,10 @@ export const tools: ToolDef[] = [
               hoursPerDay,
               dayCount: active.dayCount,
               totalHours: hoursPerDay * active.dayCount,
+              hoursPerDaySource: active.hoursPerDay
+                ? 'runway'
+                : 'user settings (set it with update_runway)',
+              missionDayCountInSync: mission.dayCount === active.dayCount,
               today: {
                 dayIndex: dayNow,
                 date: dayDate(active.startDate, dayNow, settings.timezone),
@@ -642,6 +647,28 @@ export const tools: ToolDef[] = [
           deadline: new Date(startDate.getTime() + dayCount * MS_DAY),
         })
       );
+    },
+  },
+  {
+    name: 'update_runway',
+    title: 'Update runway',
+    description:
+      'Edits a runway: title and hoursPerDay (the daily capacity used for health). Also re-aligns the mission dayCount and deadline to the active runway.',
+    tier: 'write',
+    input: z.object({
+      runwayId: id,
+      title: z.string().trim().min(1).max(120).optional(),
+      hoursPerDay: z.number().int().min(1).max(24).optional(),
+    }),
+    async run({ runwayId, ...changes }, { userId }) {
+      const access = await requireRunwayAccess(userId, runwayId, 'editor');
+      const updated = await updateRunway(access.ownerId, runwayId, changes);
+      if (!updated) throw new ToolError('Runway not found');
+      const synced = await syncMissionToRunway(access.ownerId, access.missionId);
+      return {
+        runway: clean(updated),
+        missionTimeline: synced ? { dayCount: synced.dayCount, deadline: synced.deadline } : null,
+      };
     },
   },
   {
