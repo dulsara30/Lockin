@@ -33,6 +33,7 @@ import {
 } from '@dnd-kit/core';
 import { StepData, StepDrawer } from '@/features/steps/components/step-drawer';
 import { canEdit, MissionRole } from '@/lib/access';
+import { plainPreview } from '@/lib/notes';
 import { ExportMenu } from '@/features/export/components/export-menu';
 import { ConfirmStartDayModal } from './confirm-start-day-modal';
 import { ReplanModal } from './replan-modal';
@@ -155,7 +156,7 @@ function DraggableStepCard({
 
       {step.notes && (
         <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
-          {step.notes}
+          {plainPreview(step.notes)}
         </p>
       )}
 
@@ -656,7 +657,7 @@ export function DayPipelineView({
                 </div>
                 {activeStep.notes && (
                   <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
-                    {activeStep.notes}
+                    {plainPreview(activeStep.notes)}
                   </p>
                 )}
               </div>

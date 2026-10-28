@@ -2,6 +2,8 @@
 
 import * as React from 'react';
 import ReactMarkdown from 'react-markdown';
+import { RichTextEditor } from '@/features/steps/components/rich-text-editor';
+import { forDisplay } from '@/lib/notes';
 import {
   X,
   Clock,
@@ -301,7 +303,7 @@ export function StepDrawer({
             <div className="flex items-center justify-between">
               <Label className="flex items-center gap-1.5">
                 <FileText className="h-3.5 w-3.5 text-info" />
-                <span>Notes & Context (Markdown)</span>
+                <span>Notes & Context</span>
               </Label>
               {!readOnly && (
                 <button
@@ -315,23 +317,25 @@ export function StepDrawer({
             </div>
 
             {isEditingNotes && !readOnly ? (
-              <textarea
+              <RichTextEditor
                 value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                onBlur={() => handleSave()}
-                placeholder="Write notes, steps, links or specifications in Markdown..."
-                className="w-full h-32 rounded-xl border border-border bg-surface p-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-y font-mono"
+                onChange={setNotes}
+                onCommit={(markdown) => {
+                  setNotes(markdown);
+                  if (markdown !== (step.notes || '')) handleSave({ notes: markdown });
+                }}
+                placeholder="Write notes: use the toolbar, or type '- ' for bullets and '1. ' for numbers…"
               />
             ) : (
               <div
                 onClick={() => !readOnly && setIsEditingNotes(true)}
-                className="min-h-[5rem] rounded-xl border border-border bg-surface/50 p-3 text-xs text-foreground/90 cursor-pointer hover:border-primary/40 transition-colors prose prose-invert prose-xs max-w-none"
+                className="notes-content min-h-[5rem] rounded-xl border border-border bg-surface/50 p-3 text-xs text-foreground/90 cursor-pointer hover:border-primary/40 transition-colors"
               >
                 {notes ? (
-                  <ReactMarkdown>{notes}</ReactMarkdown>
+                  <ReactMarkdown>{forDisplay(notes)}</ReactMarkdown>
                 ) : (
                   <span className="text-muted-foreground italic">
-                    {readOnly ? 'No notes.' : 'Click to add notes in markdown...'}
+                    {readOnly ? 'No notes.' : 'Click to add notes…'}
                   </span>
                 )}
               </div>

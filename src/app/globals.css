@@ -131,3 +131,77 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #3a3a52;
 }
+
+/* Notes (Markdown rendered view and rich-text editor share this look) */
+.notes-content {
+  line-height: 1.6;
+  word-break: break-word;
+}
+.notes-content > * + * {
+  margin-top: 0.6rem;
+}
+.notes-content h1,
+.notes-content h2,
+.notes-content h3 {
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--foreground);
+}
+.notes-content h1 {
+  font-size: 1.15rem;
+}
+.notes-content h2 {
+  font-size: 1rem;
+}
+.notes-content h3 {
+  font-size: 0.9rem;
+}
+.notes-content ul,
+.notes-content ol {
+  padding-left: 1.35rem;
+}
+.notes-content ul {
+  list-style: disc;
+}
+.notes-content ol {
+  list-style: decimal;
+}
+.notes-content li + li {
+  margin-top: 0.2rem;
+}
+.notes-content li > ul,
+.notes-content li > ol {
+  margin-top: 0.2rem;
+}
+.notes-content ul ul {
+  list-style: circle;
+}
+.notes-content blockquote {
+  border-left: 3px solid var(--border);
+  padding-left: 0.75rem;
+  color: var(--muted-foreground);
+}
+.notes-content code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  background: var(--surface-hover);
+  border-radius: 0.35rem;
+  padding: 0.1rem 0.3rem;
+}
+.notes-content pre {
+  overflow-x: auto;
+  background: var(--surface-hover);
+  border-radius: 0.6rem;
+  padding: 0.6rem 0.75rem;
+}
+.notes-content pre code {
+  background: transparent;
+  padding: 0;
+}
+.notes-content a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+.notes-content hr {
+  border-color: var(--border);
+}
