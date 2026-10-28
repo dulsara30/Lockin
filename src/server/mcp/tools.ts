@@ -59,6 +59,7 @@ import { getUserProfile } from '@/server/dal/mcp';
 import { requireMissionAccess, requireRunwayAccess, requireStepAccess } from '@/server/dal/access';
 import { loadExportDoc } from '@/server/export/runway-doc';
 import { dayDate, dayIndexForDate } from '@/lib/dates';
+import { normalizeNotes } from '@/lib/notes';
 
 /**
  * MCP tool catalog. Every tool acts as the single configured user and goes through the
@@ -88,6 +89,13 @@ function clean<T>(value: T): unknown {
 }
 
 const MS_DAY = 24 * 60 * 60 * 1000;
+
+const notesField = z
+  .string()
+  .max(10_000)
+  .describe(
+    'Markdown notes. Use "- " for bullets, "1." for numbered lists, a blank line between paragraphs, **bold** and ## headings. Never use the "•" character (it is converted for you, but lists render best as real Markdown).'
+  );
 
 async function persistPlan(
   actorId: string,
@@ -147,7 +155,7 @@ async function persistPlan(
         dayIndex: day.dayIndex,
         order,
         title: s.title,
-        notes: s.notes || '',
+        notes: normalizeNotes(s.notes || ''),
         estimateMin: s.estimateMin,
         status: 'todo',
         checklist: (s.checklist || []).map((c) => ({ text: c.text, done: c.done })),
@@ -681,7 +689,7 @@ export const tools: ToolDef[] = [
       runwayId: id.optional(),
       dayIndex,
       title: z.string().trim().min(1).max(200),
-      notes: z.string().max(10_000).default(''),
+      notes: notesField.default(''),
       estimateMin: z.number().int().min(0).max(1440).default(30),
       checklist: checklist.default([]),
     }),
@@ -693,7 +701,7 @@ export const tools: ToolDef[] = [
           throw new ToolError('Runway not found');
         }
       }
-      return clean(await createStep(access.ownerId, a));
+      return clean(await createStep(access.ownerId, { ...a, notes: normalizeNotes(a.notes) }));
     },
   },
   {
@@ -705,7 +713,7 @@ export const tools: ToolDef[] = [
     input: z.object({
       stepId: id,
       title: z.string().trim().min(1).max(200).optional(),
-      notes: z.string().max(10_000).optional(),
+      notes: notesField.optional(),
       estimateMin: z.number().int().min(0).max(1440).optional(),
       actualMin: z.number().int().min(0).max(100_000).optional(),
       status: status.optional(),
@@ -713,9 +721,30 @@ export const tools: ToolDef[] = [
     }),
     async run({ stepId, ...changes }, { userId }) {
       const access = await requireStepAccess(userId, stepId, 'editor');
-      const updated = await updateStep(access.ownerId, stepId, changes);
+      const updated = await updateStep(access.ownerId, stepId, {
+        ...changes,
+        ...(changes.notes !== undefined ? { notes: normalizeNotes(changes.notes) } : {}),
+      });
       if (!updated) throw new ToolError('Step not found');
       return clean(updated);
+    },
+  },
+  {
+    name: 'append_step_notes',
+    title: 'Append to step notes',
+    description:
+      'Adds Markdown to the end of a step notes (keeps existing notes). Shown with rich formatting in the app: use real lists, bold and headings.',
+    tier: 'write',
+    input: z.object({ stepId: id, markdown: z.string().min(1).max(5000) }),
+    async run({ stepId, markdown }, { userId }) {
+      const access = await requireStepAccess(userId, stepId, 'editor');
+      const step = await getStepById(access.ownerId, stepId);
+      if (!step) throw new ToolError('Step not found');
+      const existing = step.notes ? `${step.notes.trimEnd()}\n\n` : '';
+      const next = normalizeNotes(existing + markdown);
+      if (next.length > 10_000) throw new ToolError('Notes would exceed 10,000 characters.');
+      const updated = await updateStep(access.ownerId, stepId, { notes: next });
+      return { success: true, notes: updated?.notes };
     },
   },
   {
