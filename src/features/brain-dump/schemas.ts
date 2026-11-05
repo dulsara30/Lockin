@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { planSchema, planStepSchema, planDaySchema } from '@/lib/templates/parser';
+import { scheduleFields } from '@/features/schedule/schemas';
 
 export const brainDumpAiInputSchema = z.object({
   prompt: z
@@ -27,8 +28,10 @@ export const templateImportSchema = z.object({
 });
 
 export const confirmPlanSchema = planSchema.extend({
-  startDate: z.string().optional(),
-  deadline: z.string().optional(),
+  // Optional scheduling. Without startOn the runway is saved unscheduled (start it later)
+  startOn: scheduleFields.startOn,
+  workingWeekdays: scheduleFields.workingWeekdays,
+  skipDates: scheduleFields.skipDates,
   color: z.string().default('#7C5CFF'),
   missionId: z.string().optional(),
   runwayTitle: z.string().optional(),

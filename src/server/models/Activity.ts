@@ -8,7 +8,8 @@ export type ActivityEventType =
   | 'status_changed'
   | 'member_added'
   | 'member_role_changed'
-  | 'member_removed';
+  | 'member_removed'
+  | 'schedule_changed';
 
 export interface IActivity extends Document {
   _id: mongoose.Types.ObjectId;
@@ -39,6 +40,7 @@ const ActivitySchema = new Schema<IActivity>(
         'member_added',
         'member_role_changed',
         'member_removed',
+        'schedule_changed',
       ],
       required: true,
     },

@@ -15,6 +15,8 @@ import {
 } from '@/server/dal/runways';
 import { z } from 'zod';
 import { requireMissionAccess, requireRunwayAccess } from '@/server/dal/access';
+import { scheduleFields } from '@/features/schedule/schemas';
+import { checkDayStartable, resolveNewSchedule, scheduleError } from '@/server/services/schedule';
 
 const dayIndexSchema = z.number().int().min(0).max(29);
 
@@ -22,7 +24,9 @@ const createRunwaySchema = z.object({
   missionId: z.string().min(1, 'Mission is required. A runway cannot exist without a mission.'),
   title: z.string().min(1, 'Runway title is required').max(120),
   description: z.string().max(2000).optional(),
-  dayCount: z.number().int().min(1).max(30).default(5),
+  // Duration in working days, or a start and an end date (see validateNewSchedule)
+  dayCount: z.number().int().min(1).max(30).optional(),
+  ...scheduleFields,
 });
 
 async function getRequiredUserId(): Promise<string> {
@@ -44,13 +48,19 @@ export async function actionCreateRunway(raw: unknown) {
 
     const access = await requireMissionAccess(userId, parsed.data.missionId, 'editor');
 
-    const startDate = new Date();
-    const deadline = new Date(startDate.getTime() + parsed.data.dayCount * 24 * 60 * 60 * 1000);
+    const schedule = await resolveNewSchedule(userId, parsed.data);
+    if (!schedule.ok) return { success: false, error: scheduleError(schedule.errors) };
 
+    const { missionId, title, description } = parsed.data;
     const runway = await createRunway(access.ownerId, {
-      ...parsed.data,
-      startDate,
-      deadline,
+      missionId,
+      title,
+      description,
+      dayCount: schedule.value.dayCount,
+      startOn: schedule.value.startOn,
+      endOn: schedule.value.endOn,
+      workingWeekdays: schedule.value.workingWeekdays,
+      skipDates: schedule.value.skipDates,
     });
 
     revalidatePath('/runway');
@@ -98,6 +108,9 @@ export async function actionStartDay(runwayId: string, dayIndex: number) {
     if (!dayIndexSchema.safeParse(dayIndex).success)
       return { success: false, error: 'Invalid day' };
     const access = await requireRunwayAccess(userId, runwayId, 'editor');
+
+    const blocked = await checkDayStartable(userId, access.ownerId, runwayId, dayIndex);
+    if (blocked) return { success: false, error: blocked };
     const updated = await startDay(access.ownerId, runwayId, dayIndex);
     if (!updated) return { success: false, error: 'Runway not found' };
     revalidatePath('/runway');

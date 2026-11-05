@@ -5,8 +5,8 @@ export interface MissionWithRunway {
   color: string;
   priority: 'low' | 'medium' | 'high' | 'urgent';
   dayCount: number;
-  startDate: string;
-  deadline: string;
+  startDate?: string;
+  deadline?: string;
   status: string;
   tags?: string[];
   hasRunway?: boolean;

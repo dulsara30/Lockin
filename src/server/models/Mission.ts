@@ -11,8 +11,8 @@ export interface IMission extends Document {
   color: string;
   priority: MissionPriority;
   tags: string[];
-  startDate: Date;
-  deadline: Date;
+  startDate?: Date;
+  deadline?: Date;
   dayCount: number;
   status: MissionStatus;
   archived: boolean;
@@ -52,13 +52,12 @@ const MissionSchema = new Schema<IMission>(
       type: [String],
       default: [],
     },
+    // Mirror the active runway's schedule; unset while the mission is unscheduled
     startDate: {
       type: Date,
-      default: () => new Date(),
     },
     deadline: {
       type: Date,
-      required: true,
     },
     dayCount: {
       type: Number,

@@ -4,7 +4,8 @@ import { auth } from '@/lib/auth';
 import { getMissionById } from '@/server/dal/missions';
 import { getMissionAccess } from '@/server/dal/access';
 import { getRunwayByMission } from '@/server/dal/runways';
-import { getStepsByMission } from '@/server/dal/steps';
+import { getStepsForRunwayView } from '@/server/dal/steps';
+import { getRunwayCalendar, getScheduleContext } from '@/server/dal/schedule';
 import { getUserSettings } from '@/server/dal/settings';
 import { DayPipelineView } from '@/features/runway/components/day-pipeline-view';
 
@@ -35,16 +36,22 @@ export default async function DayPipelinePage({ searchParams }: DayPipelinePageP
   }
   const ownerId = access.ownerId;
 
-  const [mission, runway, settings, steps] = await Promise.all([
+  const [mission, runway, settings] = await Promise.all([
     getMissionById(ownerId, missionId),
     getRunwayByMission(ownerId, missionId),
     getUserSettings(userId),
-    getStepsByMission(ownerId, missionId),
   ]);
 
   if (!mission || !runway) {
     redirect('/runway');
   }
+
+  const [steps, calendar] = await Promise.all([
+    getStepsForRunwayView(ownerId, missionId, runway._id.toString()),
+    getScheduleContext(userId).then((ctx) =>
+      getRunwayCalendar(ownerId, runway._id.toString(), ctx)
+    ),
+  ]);
 
   const dailyCapacityMin = (settings.workHoursPerDay || 8) * 60;
   const daySteps = steps.filter((s) => s.dayIndex === dayIndex);
@@ -83,6 +90,7 @@ export default async function DayPipelinePage({ searchParams }: DayPipelinePageP
         initialSteps={JSON.parse(JSON.stringify(daySteps))}
         dailyCapacityMin={runway.hoursPerDay ? runway.hoursPerDay * 60 : dailyCapacityMin}
         role={access.role}
+        calendar={calendar ? JSON.parse(JSON.stringify(calendar)) : null}
       />
     </div>
   );

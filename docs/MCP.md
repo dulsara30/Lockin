@@ -41,11 +41,11 @@ Connector UIs change between releases. If a field name differs, the URL above is
 
 ## Access levels (you choose on the consent screen)
 
-| Level        | Tools                                                                                                |
-| ------------ | ---------------------------------------------------------------------------------------------------- |
-| Read only    | Missions, runways, days, steps, today, insights, members, templates, settings, exports, parsing.     |
-| Read & write | Also create/edit missions, runways and steps, AI planning, save plans, log time, templates.          |
-| Full access  | Also delete steps and runways, archive missions and manage sharing (each still needs your approval). |
+| Level        | Tools                                                                                                       |
+| ------------ | ----------------------------------------------------------------------------------------------------------- |
+| Read only    | Missions, runways, calendars, days, steps, today, insights, members, templates, settings, exports, parsing. |
+| Read & write | Also create/edit missions, runways and steps, AI planning, save plans, log time, templates.                 |
+| Full access  | Also delete steps and runways, archive missions and manage sharing (each still needs your approval).        |
 
 Tools above the granted level are hidden from Claude entirely. Everything goes through the same owner / editor / viewer checks as the web app, so MCP can never exceed what your account can do in the UI.
 
@@ -56,6 +56,25 @@ Tools above the granted level are hidden from Claude entirely. Everything goes t
 ### Deliberately not available
 
 Deleting missions, deleting or disabling users or accounts, passwords, sessions, API-key (BYOK) management, whole-account data export, and any raw database access or schema change.
+
+## Scheduling tools
+
+A runway is created with a duration (working days) or dates, and can stay **unscheduled** until it is started. Dates are plain calendar dates (YYYY-MM-DD) in your timezone, and **strict mode** (on by default) rejects anything in the past: creating, starting, shifting, postponing, moving or adding tasks on past days, and replanning onto them.
+
+| Tool                                           | What it does                                                                                                                                                    |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create_mission`, `create_runway`, `save_plan` | Accept a duration, or `startOn`, or `startOn` + `endOn`, plus optional `workingWeekdays` and `skipDates`. With no dates the runway is saved unscheduled.        |
+| `get_calendar`                                 | Status (unscheduled, upcoming, running, ended), start and end dates, working weekdays, rest dates, today, and every day with its date and whether it is locked. |
+| `start_runway`                                 | Starts an unscheduled runway: Day 1 is today (or `startOn`), everything else is computed.                                                                       |
+| `shift_runway`                                 | Moves the whole runway to a new start date (only while no day is past or underway).                                                                             |
+| `postpone_from_day`                            | Pushes a day and every later day forward by N working days, leaving rest days.                                                                                  |
+| `set_working_days`                             | Chooses which weekdays are worked (0 = Sunday ... 6 = Saturday).                                                                                                |
+| `skip_dates`                                   | Marks dates as rest days, or restores them.                                                                                                                     |
+| `update_settings`                              | Your default working weekdays, hours per day and timezone. Strict mode can only be changed in the app.                                                          |
+
+Every schedule tool supports `dryRun` to preview the new dates first. Steps stay on their day numbers; only dates move. Days that are past or underway are locked. `get_runway`, `get_day`, `get_today` and `get_mission` return real dates (null while unscheduled), rest days and today's position.
+
+A replan (`replan_preview`, then `apply_replan`) re-balances only the ACTIVE runway's unfinished work across the working days still ahead and saves it as a NEW runway version. It starts today (never in the past), and the original version stays next to it as history.
 
 ## Managing and revoking access
 

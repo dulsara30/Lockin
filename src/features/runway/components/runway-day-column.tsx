@@ -4,7 +4,8 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { Plus, Clock, Sparkles, Play, AlertTriangle, Maximize2 } from 'lucide-react';
+import { Plus, Clock, Sparkles, Play, AlertTriangle, Maximize2, Lock } from 'lucide-react';
+import { formatDayLabel } from '@/lib/calendar';
 import { StepData } from '@/features/steps/components/step-drawer';
 import { RunwayStepCard } from './runway-step-card';
 import { calculateDayCapacity } from '@/lib/planning';
@@ -24,6 +25,14 @@ interface RunwayDayColumnProps {
   onQuickToggleStatus?: (stepId: string, currentStatus: StepData['status']) => void;
   onStartDay?: (dayIndex: number) => void;
   readOnly?: boolean;
+  /** Calendar date of this day (YYYY-MM-DD); null while the runway is unscheduled */
+  date?: string | null;
+  /** Past or underway: its date can no longer move */
+  locked?: boolean;
+  scheduled?: boolean;
+  /** Strict mode: this day is in the past, so tasks cannot be added or dropped here */
+  isPast?: boolean;
+  canStartDay?: boolean;
 }
 
 export function RunwayDayColumn({
@@ -39,6 +48,11 @@ export function RunwayDayColumn({
   onQuickToggleStatus,
   onStartDay,
   readOnly = false,
+  date = null,
+  locked = false,
+  scheduled = false,
+  isPast = false,
+  canStartDay = false,
 }: RunwayDayColumnProps) {
   const [isAdding, setIsAdding] = React.useState(false);
   const [newTitle, setNewTitle] = React.useState('');
@@ -140,6 +154,10 @@ export function RunwayDayColumn({
             >
               Day {dayIndex + 1}
             </span>
+            <span className="text-[10px] font-mono text-muted-foreground">
+              {date ? formatDayLabel(date) : scheduled ? '' : 'No date'}
+            </span>
+            {locked && <Lock className="h-3 w-3 text-muted-foreground/70" aria-label="Locked" />}
             <Maximize2 className="h-3 w-3 text-muted-foreground opacity-60 group-hover:opacity-100 group-hover:text-primary transition-all" />
 
             {isOverdue && (
@@ -161,7 +179,7 @@ export function RunwayDayColumn({
           </Link>
 
           <div className="flex items-center gap-1.5">
-            {!readOnly && !dayStartTime && onStartDay && !isFinished && (
+            {!readOnly && canStartDay && !dayStartTime && onStartDay && !isFinished && (
               <button
                 type="button"
                 onClick={() => onStartDay(dayIndex)}
@@ -259,7 +277,7 @@ export function RunwayDayColumn({
       </div>
 
       {/* Inline Add Step */}
-      <div className={cn('pt-2 border-t border-border/50', readOnly && 'hidden')}>
+      <div className={cn('pt-2 border-t border-border/50', (readOnly || isPast) && 'hidden')}>
         {isAdding ? (
           <form onSubmit={handleInlineSubmit} className="space-y-2">
             <Input

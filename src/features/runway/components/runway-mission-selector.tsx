@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MissionWithRunway } from '@/features/missions/types';
+import { formatDayLabel } from '@/lib/calendar';
 
 interface RunwayMissionSelectorProps {
   missions: MissionWithRunway[];
@@ -231,7 +232,9 @@ export function RunwayMissionSelector({ missions }: RunwayMissionSelectorProps) 
                     suppressHydrationWarning
                     className="text-[11px] font-mono text-muted-foreground"
                   >
-                    Due {new Date(mission.deadline).toISOString().split('T')[0]}
+                    {mission.deadline
+                      ? `Ends ${formatDayLabel(new Date(mission.deadline).toISOString().slice(0, 10))}`
+                      : 'Not scheduled'}
                   </span>
 
                   {hasRunway ? (

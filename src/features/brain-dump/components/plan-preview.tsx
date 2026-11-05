@@ -4,6 +4,12 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ParsedPlan, ParsedStep } from '@/lib/templates/parser';
 import { confirmAndSavePlanAction } from '@/features/brain-dump/actions';
+import {
+  ScheduleFields,
+  checkChoice,
+  defaultChoice,
+  useScheduleDefaults,
+} from '@/features/schedule/components/schedule-fields';
 import { actionGetMissions } from '@/features/missions/actions';
 import { MissionWithRunway } from '@/features/missions/types';
 import { Button } from '@/components/ui/button';
@@ -44,6 +50,8 @@ export function PlanPreview({ initialPlan, initialMissionId, onBack }: PlanPrevi
   const router = useRouter();
   const [plan, setPlan] = useState<ParsedPlan>(initialPlan);
   const [isSaving, setIsSaving] = useState(false);
+  const scheduleDefaults = useScheduleDefaults();
+  const [schedule, setSchedule] = useState(() => defaultChoice(initialPlan.dayCount));
   const [missionsList, setMissionsList] = useState<MissionWithRunway[]>([]);
 
   // Mission configuration state in preview
@@ -153,6 +161,11 @@ export function PlanPreview({ initialPlan, initialMissionId, onBack }: PlanPrevi
       toast.error('Mission title is required');
       return;
     }
+    const checked = checkChoice(schedule, scheduleDefaults);
+    if (!checked.ok) {
+      toast.error(checked.errors[0]);
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -170,6 +183,9 @@ export function PlanPreview({ initialPlan, initialMissionId, onBack }: PlanPrevi
         tags: parsedTags,
         missionId: selectedMissionId === 'new' ? undefined : selectedMissionId,
         runwayTitle: runwayTitle.trim() || `${missionTitle.trim()} Runway`,
+        // Optional: leave unscheduled and start the runway later
+        startOn: schedule.mode === 'start' ? schedule.startOn || undefined : undefined,
+        workingWeekdays: schedule.workingWeekdays,
       };
 
       const res = await confirmAndSavePlanAction(payload);
@@ -285,6 +301,14 @@ export function PlanPreview({ initialPlan, initialMissionId, onBack }: PlanPrevi
               />
             </div>
           </div>
+
+          <ScheduleFields
+            value={{ ...schedule, dayCount: plan.dayCount }}
+            onChange={setSchedule}
+            defaults={scheduleDefaults}
+            modes={['later', 'start']}
+            lockDuration
+          />
 
           <div className="space-y-1.5">
             <Label className="text-xs">Mission Description / Strategy</Label>

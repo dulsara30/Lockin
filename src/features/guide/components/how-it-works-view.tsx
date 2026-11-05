@@ -26,6 +26,7 @@ import {
   ShieldCheck,
   Users,
   Plug,
+  CalendarClock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -54,12 +55,12 @@ const FEATURES: FeatureTab[] = [
     description:
       'A Mission is the root container representing an overarching project, goal, or sprint milestone. A runway cannot exist without a mission.',
     whatItDoes: [
-      'Establishes the deadline, priority level, and target day span (e.g. 5 days, 14 days).',
+      'Sets the priority and the duration in working days (e.g. 5 or 14). Dates are optional: add them now, or start the runway later.',
       'Acts as the single source of truth for overall workload capacity and milestone delivery.',
       'Tracks total completed vs planned minutes and health status (On track / At risk / Behind).',
     ],
     howItWorks: [
-      'Create a mission manually with custom color and priority, or let AI generate one from a Brain Dump.',
+      'Create a mission with a duration, or a start and end date. It is never started automatically; you choose when it begins.',
       'All daily tasks and execution runways are strictly owned by their parent mission.',
       'Deleting a mission safely removes all associated runways and tasks with confirmation.',
     ],
@@ -79,7 +80,7 @@ const FEATURES: FeatureTab[] = [
     whatItDoes: [
       'Divides remaining work into daily columns balanced against your daily capacity (e.g. 8.0h/day).',
       'Calculates real-time percentage utilization for every individual day to prevent burnout.',
-      'Supports Versioning: Original v1 is permanently preserved when you create re-planned versions.',
+      'Supports Versioning: the original v1 is always kept as history next to every re-planned version (v2, v3).',
     ],
     howItWorks: [
       'Tasks are arranged chronologically using fractional-indexing for instantaneous reordering.',
@@ -153,7 +154,7 @@ const FEATURES: FeatureTab[] = [
     howItWorks: [
       'Click "Re-plan" on any active runway experiencing schedule drag or overload.',
       'Gemini analyzes remaining estimates against your daily capacity and outputs a re-balanced preview.',
-      'Saving creates a new Runway Version (e.g. v2 Replan) while keeping your original baseline intact.',
+      'Saving creates a NEW runway version (v2 next to v1). The re-plan only uses days that are still ahead: it starts today, never on a past day. v1 stays as history.',
     ],
     systemAction:
       'The feasibility engine compares remaining work against remaining days and alerts you with clear options if the deadline cannot be met with standard capacity.',
@@ -207,8 +208,31 @@ const FEATURES: FeatureTab[] = [
     actionLabel: 'View Analytics',
   },
   {
+    id: 'scheduling',
+    name: '8. Scheduling & Working Days',
+    tagline: 'Plan First, Start When You Are Ready',
+    icon: CalendarClock,
+    color: 'text-lime',
+    description:
+      'A mission or runway can be prepared with only a duration and started later. Days are working days on a calendar you control, so weekends, holidays and postponed days never break the plan.',
+    whatItDoes: [
+      'Create with a duration, a start date plus duration, or a start and end date. Dates cannot be in the past, and at least a duration or both dates are required.',
+      'Press Start runway and that day becomes Day 1: every other date and the end date are worked out from your working days.',
+      'Pick which weekdays you work (all seven by default, changeable in Settings and per runway), skip single dates, postpone from any day, or shift the whole runway forward.',
+    ],
+    howItWorks: [
+      'Each day column shows its real date. Rest days are skipped, tasks stay on their day numbers, and only the dates move.',
+      'Days that are past or underway are locked. Missed something? Shift the rest forward or replan; nothing can be moved or added on a past day.',
+      'Settings, then Calendar & schedule: choose your default working week and turn Strict schedule on or off (on by default: no past dates anywhere).',
+    ],
+    systemAction:
+      'One working calendar computes every date, and every create, start, shift, postpone and move is validated on the server. Claude (MCP) uses the same rules and can preview any change with a dry run first.',
+    actionUrl: '/settings',
+    actionLabel: 'Open Calendar settings',
+  },
+  {
     id: 'sharing',
-    name: '8. Sharing & Roles',
+    name: '9. Sharing & Roles',
     tagline: 'Collaborate on a Mission with Least-Privilege Access',
     icon: Users,
     color: 'text-primary',
@@ -231,12 +255,12 @@ const FEATURES: FeatureTab[] = [
   },
   {
     id: 'mcp',
-    name: '9. Claude Connector (MCP)',
+    name: '10. Claude Connector (MCP)',
     tagline: 'Let Claude Plan and Manage Lockin For You, Securely',
     icon: Plug,
     color: 'text-info',
     description:
-      'Lockin includes a private MCP server so Claude can read your plans, generate and save runways, update steps and more, acting as you with the exact access you grant.',
+      'Lockin includes a private MCP server so Claude can read your plans, generate and save runways, start, shift and postpone schedules, update steps and more, acting as you with the exact access you grant.',
     whatItDoes: [
       'Read only, Read & write or Full access: you choose on the consent screen, and tools above that level are hidden from Claude.',
       'Everything respects your normal permissions: owner, editor and viewer rules apply to Claude exactly as they do to you.',
@@ -262,32 +286,37 @@ export function HowItWorksView() {
     {
       num: '01',
       title: 'Define your Mission',
-      desc: 'Set the broad goal, priority, and deadline. This serves as the container for all execution work.',
+      desc: 'Set the goal, priority and a duration (or start and end dates). Nothing starts until you say so.',
     },
     {
       num: '02',
       title: 'Generate or Import Runway',
-      desc: 'Use AI Brain Dump or templates to automatically map tasks into daily capacity-balanced columns.',
+      desc: 'Use AI Brain Dump or templates to map tasks into daily columns. Leave the dates empty to start later.',
     },
     {
       num: '03',
-      title: 'Start your Day (24h Clock)',
-      desc: 'Commit to the current day. A strict 24-hour countdown begins to finish scheduled items.',
+      title: 'Start the Runway',
+      desc: 'Pick the start date. Day 1 lands there and every other date follows your working days.',
     },
     {
       num: '04',
+      title: 'Start your Day (24h Clock)',
+      desc: 'On the day itself, commit to it. A 24-hour countdown begins to finish scheduled items.',
+    },
+    {
+      num: '05',
       title: 'Lock In & Execute',
       desc: 'Move tasks across To Do, In Progress, and Done. Use fullscreen Lock-in mode for deep work.',
     },
     {
-      num: '05',
-      title: 'Re-plan if Overdue',
-      desc: 'If 24h lapses or life happens, use AI Re-plan to re-balance remaining work into a new version.',
+      num: '06',
+      title: 'Postpone or Re-plan',
+      desc: 'Shift or postpone forward, or re-plan into a new version that only uses days still ahead.',
     },
     {
-      num: '06',
+      num: '07',
       title: 'Share & Collaborate',
-      desc: 'Invite teammates by email as editors or viewers. Change or revoke access whenever you want.',
+      desc: 'Invite teammates as editors or viewers. Change or revoke access whenever you want.',
     },
   ];
 
@@ -495,7 +524,7 @@ export function HowItWorksView() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-3">
           {stepsList.map((step, idx) => {
             const isCurrent = activeStepIndex === idx;
 

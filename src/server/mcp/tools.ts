@@ -58,7 +58,34 @@ import {
 import { getUserProfile } from '@/server/dal/mcp';
 import { requireMissionAccess, requireRunwayAccess, requireStepAccess } from '@/server/dal/access';
 import { loadExportDoc } from '@/server/export/runway-doc';
-import { dayDate, dayIndexForDate } from '@/lib/dates';
+import {
+  Schedule,
+  clampedDayIndex,
+  dateForDay,
+  dayStateFor,
+  endOn as scheduleEndOn,
+} from '@/lib/calendar';
+import {
+  getRunwayCalendar,
+  getScheduleContext,
+  postponeRunway,
+  runwaySchedule,
+  scheduleStatus,
+  setRunwayWorkingDays,
+  shiftRunway,
+  skipRunwayDates,
+  startRunway,
+} from '@/server/dal/schedule';
+import {
+  checkDayNotInPast,
+  checkDayStartable,
+  remainingWorkingDays,
+  replanSchedule,
+  resolveNewSchedule,
+  scheduleDates,
+  scheduleError,
+} from '@/server/services/schedule';
+import { updateUserSettings } from '@/server/dal/settings';
 import { normalizeNotes } from '@/lib/notes';
 
 /**
@@ -97,16 +124,107 @@ const notesField = z
     'Markdown notes. Use "- " for bullets, "1." for numbered lists, a blank line between paragraphs, **bold** and ## headings. Never use the "•" character (it is converted for you, but lists render best as real Markdown).'
   );
 
+/** Calendar facts of a runway for read tools (dates are null while unscheduled). */
+async function calendarOf(
+  userId: string,
+  runway: {
+    dayCount: number;
+    startOn?: string | null;
+    startDate?: Date | null;
+    workingWeekdays?: number[] | null;
+    skipDates?: string[] | null;
+  }
+) {
+  const ctx = await getScheduleContext(userId);
+  const schedule: Schedule = runwaySchedule(runway, ctx.tz);
+  const state = dayStateFor(schedule, runway.dayCount, ctx.today);
+  const dateOf = (d: number) => (schedule.startOn ? dateForDay(schedule, d) : null);
+  return {
+    ctx,
+    schedule,
+    state,
+    dateOf,
+    summary: {
+      status: scheduleStatus(state),
+      startOn: schedule.startOn,
+      endOn: scheduleEndOn(schedule, runway.dayCount),
+      workingWeekdays: schedule.workingWeekdays,
+      skipDates: schedule.skipDates,
+      timezone: ctx.tz,
+      today: state,
+    },
+  };
+}
+
+/** Turns a schedule operation outcome into tool output (or a safe error). */
+function scheduleResult(res: Awaited<ReturnType<typeof startRunway>>): {
+  applied: boolean;
+  calendar: unknown;
+} {
+  if (!res.ok) throw new ToolError(scheduleError(res.errors));
+  return { applied: res.applied, calendar: res.calendar };
+}
+
+const scheduleInput = {
+  startOn: z
+    .string()
+    .regex(/^d{4}-d{2}-d{2}$/)
+    .optional()
+    .describe('Start date YYYY-MM-DD (not in the past)'),
+  endOn: z
+    .string()
+    .regex(/^d{4}-d{2}-d{2}$/)
+    .optional()
+    .describe('End date YYYY-MM-DD'),
+  workingWeekdays: z
+    .array(z.number().int().min(0).max(6))
+    .min(1)
+    .max(7)
+    .optional()
+    .describe('Working weekdays, 0=Sunday..6=Saturday. Defaults to the user setting.'),
+  skipDates: z
+    .array(z.string().regex(/^d{4}-d{2}-d{2}$/))
+    .max(60)
+    .optional(),
+};
+
 async function persistPlan(
   actorId: string,
   plan: ParsedPlan,
-  opts: { missionId?: string; color?: string; runwayTitle?: string; replan?: boolean }
+  opts: {
+    missionId?: string;
+    color?: string;
+    runwayTitle?: string;
+    replan?: boolean;
+    startOn?: string;
+    endOn?: string;
+    workingWeekdays?: number[];
+    skipDates?: string[];
+  }
 ) {
-  const startDate = new Date();
-  const deadline = new Date(startDate.getTime() + plan.dayCount * MS_DAY);
-
   let ownerId = actorId;
   let missionId: string;
+  let schedule;
+  if (opts.replan && opts.missionId) {
+    // A replan is a NEW version that starts today (or its future start): never in the past
+    const acc = await requireMissionAccess(actorId, opts.missionId, 'editor');
+    schedule = await replanSchedule(
+      actorId,
+      await getRunwayByMission(acc.ownerId, opts.missionId),
+      plan.dayCount
+    );
+  } else {
+    schedule = await resolveNewSchedule(actorId, {
+      dayCount: plan.dayCount,
+      startOn: opts.startOn,
+      endOn: opts.endOn,
+      workingWeekdays: opts.workingWeekdays,
+      skipDates: opts.skipDates,
+    });
+  }
+  if (!schedule.ok) throw new ToolError(scheduleError(schedule.errors));
+  const sv = schedule.value;
+
   if (opts.missionId) {
     const access = await requireMissionAccess(actorId, opts.missionId, 'editor');
     ownerId = access.ownerId;
@@ -120,9 +238,8 @@ async function persistPlan(
       color: opts.color || '#7C5CFF',
       priority: plan.priority,
       tags: plan.tags,
-      startDate,
-      deadline,
-      dayCount: plan.dayCount,
+      ...scheduleDates(sv),
+      dayCount: sv.dayCount,
     });
     missionId = m._id.toString();
   }
@@ -135,9 +252,11 @@ async function persistPlan(
       ? `${plan.title || 'Pipeline'} (v${nextVersion})`
       : opts.runwayTitle || `${plan.title} Runway`,
     description: plan.description || '',
-    dayCount: plan.dayCount,
-    startDate,
-    deadline,
+    dayCount: sv.dayCount,
+    startOn: sv.startOn,
+    endOn: sv.endOn,
+    workingWeekdays: sv.workingWeekdays,
+    skipDates: sv.skipDates,
     hoursPerDay: plan.hoursPerDay,
     ...(opts.replan ? { version: nextVersion, isOriginal: false } : {}),
   });
@@ -258,15 +377,9 @@ export const tools: ToolDef[] = [
       ]);
       if (!mission) throw new ToolError('Mission not found');
       const steps = active ? await getStepsByRunway(o, active._id.toString()) : [];
-      const dayNow = active
-        ? Math.max(
-            0,
-            Math.min(
-              active.dayCount - 1,
-              dayIndexForDate(active.startDate, new Date(), settings.timezone)
-            )
-          )
-        : 0;
+      const cal = active ? await calendarOf(userId, active) : null;
+      const dayNow =
+        active && cal ? clampedDayIndex(cal.schedule, active.dayCount, cal.ctx.today) : 0;
       // Capacity is what the runway was planned with, else the user's setting
       const hoursPerDay = active?.hoursPerDay || settings.workHoursPerDay || 4;
       const health = active
@@ -301,12 +414,13 @@ export const tools: ToolDef[] = [
                 ? 'runway'
                 : 'user settings (set it with update_runway)',
               missionDayCountInSync: mission.dayCount === active.dayCount,
-              today: {
-                dayIndex: dayNow,
-                date: dayDate(active.startDate, dayNow, settings.timezone),
-              },
+              today:
+                cal && cal.state.state === 'working'
+                  ? { ...cal.state, date: cal.dateOf(cal.state.dayIndex) }
+                  : (cal?.state ?? null),
             }
           : null,
+        schedule: cal?.summary ?? null,
         members: members.map((m) => ({
           userId: m.userId,
           name: m.name,
@@ -324,18 +438,18 @@ export const tools: ToolDef[] = [
     input: z.object({ runwayId: id }),
     async run({ runwayId }, { userId }) {
       const access = await requireRunwayAccess(userId, runwayId, 'viewer');
-      const [runway, steps, settings] = await Promise.all([
+      const [runway, steps] = await Promise.all([
         getRunwayById(access.ownerId, runwayId),
         getStepsByRunway(access.ownerId, runwayId),
-        getUserSettings(userId),
       ]);
       if (!runway) throw new ToolError('Runway not found');
+      const cal = await calendarOf(userId, runway);
       return {
         runway: clean(runway),
-        timezone: settings.timezone,
+        schedule: cal.summary,
         days: Array.from({ length: runway.dayCount }, (_, d) => ({
           dayIndex: d,
-          date: dayDate(runway.startDate, d, settings.timezone),
+          date: cal.dateOf(d),
           steps: clean(steps.filter((s) => s.dayIndex === d)),
         })),
       };
@@ -356,10 +470,11 @@ export const tools: ToolDef[] = [
       ]);
       if (!runway) throw new ToolError('Runway not found');
       if (d >= runway.dayCount) throw new ToolError('Day not found');
+      const cal = await calendarOf(userId, runway);
       return {
         dayIndex: d,
-        date: dayDate(runway.startDate, d, settings.timezone),
-        timezone: settings.timezone,
+        date: cal.dateOf(d),
+        schedule: cal.summary,
         steps: clean(steps.filter((s) => s.dayIndex === d)),
       };
     },
@@ -509,23 +624,25 @@ export const tools: ToolDef[] = [
     name: 'replan_preview',
     title: 'Re-plan preview (AI)',
     description:
-      'Re-balances the unfinished steps of a mission across remaining days and checks feasibility. Preview only; call apply_replan to save. May use AI quota (falls back offline).',
+      'Re-balances the unfinished steps of the ACTIVE runway across the working days still ahead (past days are never used) and checks feasibility. Preview only; apply_replan saves it as a NEW runway version (v1 stays as history). May use AI quota (falls back offline).',
     tier: 'read',
     openWorld: true,
     input: z.object({ missionId: id, hoursPerDay: z.number().int().min(1).max(16).default(4) }),
     async run({ missionId, hoursPerDay }, { userId }) {
       const access = await requireMissionAccess(userId, missionId, 'editor');
       const o = access.ownerId;
-      const [steps, mission, runway] = await Promise.all([
-        getStepsByMission(o, missionId),
+      const [mission, runway] = await Promise.all([
         getMissionById(o, missionId),
         getRunwayByMission(o, missionId),
       ]);
+      // Only the ACTIVE runway's unfinished work is re-planned; older versions are history
+      const steps = runway ? await getStepsByRunway(o, runway._id.toString()) : [];
       const open = steps.filter((s) => s.status !== 'done' && s.status !== 'skipped');
       if (open.length === 0) throw new ToolError('No incomplete steps to re-plan.');
 
-      const deadline = runway?.deadline || mission?.deadline || new Date(Date.now() + 7 * MS_DAY);
-      const daysLeft = Math.max(1, Math.ceil((new Date(deadline).getTime() - Date.now()) / MS_DAY));
+      // Working days still ahead; past days never count
+      const ctx = await getScheduleContext(userId);
+      const daysLeft = Math.max(1, remainingWorkingDays(runway, ctx, mission?.dayCount ?? 5));
       const totalMin = open.reduce((a, s) => a + s.estimateMin, 0);
       const capacity = daysLeft * hoursPerDay * 60;
       const plan = await replanMissionWithGemini({
@@ -558,13 +675,15 @@ export const tools: ToolDef[] = [
   {
     name: 'create_mission',
     title: 'Create mission',
-    description: 'Creates an empty mission (add a runway with create_runway or save_plan).',
+    description:
+      'Creates a mission. Give a duration (dayCount working days) to schedule later, or a start date, or both start and end dates. Dates cannot be in the past (strict mode). Add a runway with create_runway or save_plan.',
     tier: 'write',
     input: z.object({
       title: z.string().trim().min(1).max(120),
       description: z.string().trim().max(2000).default(''),
       priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
-      dayCount: z.number().int().min(1).max(30).default(5),
+      dayCount: z.number().int().min(1).max(30).optional().describe('Duration in working days'),
+      ...scheduleInput,
       color: z
         .string()
         .regex(/^#[0-9A-Fa-f]{6}$/)
@@ -572,20 +691,26 @@ export const tools: ToolDef[] = [
       tags: z.array(z.string().trim().max(40)).max(20).default([]),
     }),
     async run(a, { userId }) {
-      const startDate = new Date();
+      const schedule = await resolveNewSchedule(userId, a);
+      if (!schedule.ok) throw new ToolError(scheduleError(schedule.errors));
+      const { title, description, priority, color, tags } = a;
       const m = await createMission(userId, {
-        ...a,
-        startDate,
-        deadline: new Date(startDate.getTime() + a.dayCount * MS_DAY),
+        title,
+        description,
+        priority,
+        color,
+        tags,
+        dayCount: schedule.value.dayCount,
+        ...scheduleDates(schedule.value),
       });
-      return clean(m);
+      return { mission: clean(m), schedule: schedule.value };
     },
   },
   {
     name: 'update_mission',
     title: 'Update mission',
     description:
-      'Edits mission fields, timeline (dayCount, startDate) or marks it active/completed. startDate also moves the active runway calendar. Archiving is a separate critical tool.',
+      'Edits mission fields or marks it active/completed. The timeline (duration, dates, working days) is changed on the runway with schedule tools. Archiving is a separate critical tool.',
     tier: 'write',
     input: z.object({
       missionId: id,
@@ -597,64 +722,42 @@ export const tools: ToolDef[] = [
         .regex(/^#[0-9A-Fa-f]{6}$/)
         .optional(),
       tags: z.array(z.string().trim().max(40)).max(20).optional(),
-      deadline: z.string().datetime().optional().describe('ISO 8601 date-time'),
-      dayCount: z.number().int().min(1).max(30).optional(),
-      startDate: z.string().datetime().optional().describe('ISO 8601 date-time'),
       status: z.enum(['active', 'completed']).optional(),
     }),
-    async run({ missionId, deadline, startDate, ...changes }, { userId }) {
+    async run({ missionId, ...changes }, { userId }) {
       const access = await requireMissionAccess(userId, missionId, 'editor');
-      const o = access.ownerId;
-      const start = startDate ? new Date(startDate) : undefined;
-      const updated = await updateMission(o, missionId, {
-        ...changes,
-        ...(deadline ? { deadline: new Date(deadline) } : {}),
-        ...(start ? { startDate: start } : {}),
-      });
+      const updated = await updateMission(access.ownerId, missionId, changes);
       if (!updated) throw new ToolError('Mission not found');
-
-      // Keep the active runway calendar aligned when the start moves
-      const active = await getRunwayByMission(o, missionId);
-      if (active && start) {
-        await updateRunway(o, active._id.toString(), {
-          startDate: start,
-          deadline: new Date(start.getTime() + active.dayCount * MS_DAY),
-        });
-      }
-      return {
-        mission: clean(updated),
-        activeRunway: active
-          ? {
-              id: active._id.toString(),
-              dayCount: active.dayCount,
-              inSync: active.dayCount === updated.dayCount,
-            }
-          : null,
-      };
+      return clean(updated);
     },
   },
   {
     name: 'create_runway',
     title: 'Create runway',
-    description: 'Creates an empty runway (new version) under a mission.',
+    description:
+      'Creates an empty runway (new version) under a mission. Give a duration (dayCount working days) to start later, or a start date, or both start and end dates. Dates cannot be in the past.',
     tier: 'write',
     input: z.object({
       missionId: id,
       title: z.string().trim().min(1).max(120),
-      dayCount: z.number().int().min(1).max(30).default(5),
+      dayCount: z.number().int().min(1).max(30).optional().describe('Duration in working days'),
+      ...scheduleInput,
     }),
-    async run({ missionId, title, dayCount }, { userId }) {
+    async run({ missionId, title, ...sched }, { userId }) {
       const access = await requireMissionAccess(userId, missionId, 'editor');
-      const startDate = new Date();
-      return clean(
-        await createRunway(access.ownerId, {
-          missionId,
-          title,
-          dayCount,
-          startDate,
-          deadline: new Date(startDate.getTime() + dayCount * MS_DAY),
-        })
-      );
+      const schedule = await resolveNewSchedule(userId, sched);
+      if (!schedule.ok) throw new ToolError(scheduleError(schedule.errors));
+      const v = schedule.value;
+      const runway = await createRunway(access.ownerId, {
+        missionId,
+        title,
+        dayCount: v.dayCount,
+        startOn: v.startOn,
+        endOn: v.endOn,
+        workingWeekdays: v.workingWeekdays,
+        skipDates: v.skipDates,
+      });
+      return { runway: clean(runway), schedule: v };
     },
   },
   {
@@ -701,6 +804,8 @@ export const tools: ToolDef[] = [
           throw new ToolError('Runway not found');
         }
       }
+      const past = await checkDayNotInPast(userId, access.ownerId, a.runwayId, a.dayIndex);
+      if (past) throw new ToolError(past);
       return clean(await createStep(access.ownerId, { ...a, notes: normalizeNotes(a.notes) }));
     },
   },
@@ -758,6 +863,8 @@ export const tools: ToolDef[] = [
       const o = access.ownerId;
       const step = await getStepById(o, stepId);
       if (!step) throw new ToolError('Step not found');
+      const past = await checkDayNotInPast(userId, o, step.runwayId?.toString(), d, step.dayIndex);
+      if (past) throw new ToolError(past);
       const siblings = (
         step.runwayId
           ? await getStepsByRunway(o, step.runwayId.toString())
@@ -780,6 +887,9 @@ export const tools: ToolDef[] = [
     input: z.object({ missionId: id, stepIds: z.array(id).min(1).max(100), toDay: dayIndex }),
     async run({ missionId, stepIds, toDay }, { userId }) {
       const access = await requireMissionAccess(userId, missionId, 'editor');
+      const runway = await getRunwayByMission(access.ownerId, missionId);
+      const past = await checkDayNotInPast(userId, access.ownerId, runway?._id.toString(), toDay);
+      if (past) throw new ToolError(past);
       return await rolloverSteps(
         access.ownerId,
         missionId,
@@ -790,14 +900,159 @@ export const tools: ToolDef[] = [
   {
     name: 'start_day',
     title: 'Start day clock',
-    description: 'Starts the 24-hour commitment clock for a day of a runway.',
+    description:
+      'Starts the 24-hour commitment clock for a day of a runway. The runway must be started, and a day cannot be started before its own date.',
     tier: 'write',
     input: z.object({ runwayId: id, dayIndex }),
     async run({ runwayId, dayIndex: d }, { userId }) {
       const access = await requireRunwayAccess(userId, runwayId, 'editor');
+      const blocked = await checkDayStartable(userId, access.ownerId, runwayId, d);
+      if (blocked) throw new ToolError(blocked);
       const r = await startDay(access.ownerId, runwayId, d);
       if (!r) throw new ToolError('Runway not found');
       return { success: true };
+    },
+  },
+  {
+    name: 'get_calendar',
+    title: 'Get runway calendar',
+    description:
+      'Calendar of a runway: status (unscheduled, upcoming, running, ended), start and end dates, working weekdays, skipped (rest) dates, today, and every day with its date and whether it is locked (past or underway).',
+    tier: 'read',
+    input: z.object({ runwayId: id }),
+    async run({ runwayId }, { userId }) {
+      const access = await requireRunwayAccess(userId, runwayId, 'viewer');
+      const ctx = await getScheduleContext(userId);
+      const cal = await getRunwayCalendar(access.ownerId, runwayId, ctx);
+      if (!cal) throw new ToolError('Runway not found');
+      return cal;
+    },
+  },
+  {
+    name: 'start_runway',
+    title: 'Start runway',
+    description:
+      'Starts an UNSCHEDULED runway: Day 1 becomes today (or startOn, which cannot be in the past) and every other date and the end date are computed from the working days. Use dryRun to preview.',
+    tier: 'write',
+    input: z.object({
+      runwayId: id,
+      startOn: scheduleInput.startOn,
+      dryRun: z.boolean().optional(),
+    }),
+    async run({ runwayId, startOn, dryRun }, { userId }) {
+      const access = await requireRunwayAccess(userId, runwayId, 'editor');
+      const ctx = await getScheduleContext(userId);
+      return scheduleResult(await startRunway(access.ownerId, runwayId, ctx, startOn, dryRun));
+    },
+  },
+  {
+    name: 'shift_runway',
+    title: 'Shift runway',
+    description:
+      'Moves the WHOLE runway to a new start date (not in the past). Only allowed while no day is past or underway; otherwise use postpone_from_day. Use dryRun to preview.',
+    tier: 'write',
+    input: z.object({
+      runwayId: id,
+      startOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      dryRun: z.boolean().optional(),
+    }),
+    async run({ runwayId, startOn, dryRun }, { userId }) {
+      const access = await requireRunwayAccess(userId, runwayId, 'editor');
+      const ctx = await getScheduleContext(userId);
+      return scheduleResult(await shiftRunway(access.ownerId, runwayId, ctx, startOn, dryRun));
+    },
+  },
+  {
+    name: 'postpone_from_day',
+    title: 'Postpone from a day',
+    description:
+      'Pushes a day (0-based) and every later day forward by N working days, leaving a gap of rest days. Tasks stay on the same day numbers; only dates move. Days already past or underway cannot be postponed. Use dryRun to preview.',
+    tier: 'write',
+    input: z.object({
+      runwayId: id,
+      fromDay: dayIndex,
+      days: z.number().int().min(1).max(30),
+      dryRun: z.boolean().optional(),
+    }),
+    async run({ runwayId, fromDay, days, dryRun }, { userId }) {
+      const access = await requireRunwayAccess(userId, runwayId, 'editor');
+      const ctx = await getScheduleContext(userId);
+      return scheduleResult(
+        await postponeRunway(access.ownerId, runwayId, ctx, fromDay, days, dryRun)
+      );
+    },
+  },
+  {
+    name: 'set_working_days',
+    title: 'Set working days',
+    description:
+      'Sets which weekdays this runway works (0=Sunday..6=Saturday). Dates of days already past or underway must not change. Use dryRun to preview.',
+    tier: 'write',
+    input: z.object({
+      runwayId: id,
+      weekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7),
+      dryRun: z.boolean().optional(),
+    }),
+    async run({ runwayId, weekdays, dryRun }, { userId }) {
+      const access = await requireRunwayAccess(userId, runwayId, 'editor');
+      const ctx = await getScheduleContext(userId);
+      return scheduleResult(
+        await setRunwayWorkingDays(access.ownerId, runwayId, ctx, weekdays, dryRun)
+      );
+    },
+  },
+  {
+    name: 'skip_dates',
+    title: 'Skip or restore dates',
+    description:
+      'Marks calendar dates as rest days (add) or makes them working days again (remove). Later days move accordingly; steps stay on their day numbers. Use dryRun to preview.',
+    tier: 'write',
+    input: z.object({
+      runwayId: id,
+      add: z
+        .array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
+        .max(60)
+        .default([]),
+      remove: z
+        .array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
+        .max(60)
+        .default([]),
+      dryRun: z.boolean().optional(),
+    }),
+    async run({ runwayId, add, remove, dryRun }, { userId }) {
+      const access = await requireRunwayAccess(userId, runwayId, 'editor');
+      const ctx = await getScheduleContext(userId);
+      return scheduleResult(
+        await skipRunwayDates(access.ownerId, runwayId, ctx, add, remove, dryRun)
+      );
+    },
+  },
+  {
+    name: 'update_settings',
+    title: 'Update calendar settings',
+    description:
+      'Changes your default working weekdays (0=Sunday..6=Saturday), hours per day and timezone for NEW runways. Strict mode (no past dates) can only be changed in the app.',
+    tier: 'write',
+    input: z.object({
+      workingWeekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7).optional(),
+      workHoursPerDay: z.number().int().min(1).max(24).optional(),
+      timezone: z.string().min(1).max(64).optional(),
+    }),
+    async run(changes, { userId }) {
+      if (changes.timezone) {
+        try {
+          new Intl.DateTimeFormat('en', { timeZone: changes.timezone });
+        } catch {
+          throw new ToolError('Unknown timezone. Use an IANA name such as Asia/Colombo.');
+        }
+      }
+      const updated = await updateUserSettings(userId, changes);
+      return {
+        workingWeekdays: updated.workingWeekdays,
+        workHoursPerDay: updated.workHoursPerDay,
+        timezone: updated.timezone,
+        strictSchedule: updated.strictSchedule,
+      };
     },
   },
   {
@@ -831,7 +1086,7 @@ export const tools: ToolDef[] = [
     name: 'save_plan',
     title: 'Save plan',
     description:
-      'Persists a plan (from generate_plan, parse_template or hand-written) as a new mission + runway, or as a new runway under missionId.',
+      'Persists a plan (from generate_plan, parse_template or hand-written) as a new mission + runway, or as a new runway under missionId. The plan length is the duration; add startOn to schedule it, otherwise it is saved unscheduled and started later with start_runway.',
     tier: 'write',
     input: z.object({
       plan: planInput,
@@ -841,6 +1096,7 @@ export const tools: ToolDef[] = [
         .regex(/^#[0-9A-Fa-f]{6}$/)
         .optional(),
       runwayTitle: z.string().trim().max(120).optional(),
+      ...scheduleInput,
     }),
     async run({ plan, ...opts }, { userId }) {
       return await persistPlan(userId, plan, opts);

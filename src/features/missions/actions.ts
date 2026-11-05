@@ -29,6 +29,16 @@ import {
   getTimeLogById,
 } from '@/server/dal/timeLogs';
 import { requireMissionAccess, requireStepAccess } from '@/server/dal/access';
+import {
+  checkDayNotInPast,
+  resolveNewSchedule,
+  scheduleDates,
+  scheduleError,
+} from '@/server/services/schedule';
+import { getRunwayByMission } from '@/server/dal/runways';
+import { getStepById } from '@/server/dal/steps';
+import { getScheduleContext, runwaySchedule } from '@/server/dal/schedule';
+import { dayIsInPast } from '@/lib/schedule';
 import { getMemberCounts, getSharedMissions, listMembers } from '@/server/dal/members';
 import {
   createMissionSchema,
@@ -59,6 +69,13 @@ function revalidateAll() {
   revalidatePath('/insights');
 }
 
+/** Strict mode: a step may not be moved onto a past day. */
+async function guardMove(userId: string, ownerId: string, stepId: string, newDay: number) {
+  const step = await getStepById(ownerId, stepId);
+  if (!step) return null;
+  return checkDayNotInPast(userId, ownerId, step.runwayId?.toString(), newDay, step.dayIndex);
+}
+
 // ---------------- Mission Actions ----------------
 
 export async function actionCreateMission(raw: CreateMissionInput) {
@@ -69,7 +86,19 @@ export async function actionCreateMission(raw: CreateMissionInput) {
       return { success: false, error: parsed.error.issues[0]?.message || 'Invalid input' };
     }
 
-    const mission = await createMission(userId, parsed.data);
+    const { title, description, color, priority, tags } = parsed.data;
+    const schedule = await resolveNewSchedule(userId, parsed.data);
+    if (!schedule.ok) return { success: false, error: scheduleError(schedule.errors) };
+
+    const mission = await createMission(userId, {
+      title,
+      description,
+      color,
+      priority,
+      tags,
+      dayCount: schedule.value.dayCount,
+      ...scheduleDates(schedule.value),
+    });
     revalidateAll();
     return { success: true, data: JSON.parse(JSON.stringify(mission)) };
   } catch (error) {
@@ -240,6 +269,14 @@ export async function actionCreateStep(raw: CreateStepInput) {
       }
     }
 
+    const pastErr = await checkDayNotInPast(
+      userId,
+      access.ownerId,
+      parsed.data.runwayId,
+      parsed.data.dayIndex
+    );
+    if (pastErr) return { success: false, error: pastErr };
+
     const step = await createStep(access.ownerId, parsed.data);
     revalidatePath('/runway');
     revalidatePath('/today');
@@ -263,6 +300,18 @@ export async function actionUpdateStep(stepId: string, raw: UpdateStepInput) {
     // runwayId is not updatable (prevents re-parenting a step into another tree)
     const { runwayId: _ignored, ...changes } = parsed.data;
     void _ignored;
+
+    if (changes.dayIndex !== undefined) {
+      const current = await getStepById(access.ownerId, stepId);
+      const pastErr = await checkDayNotInPast(
+        userId,
+        access.ownerId,
+        current?.runwayId?.toString(),
+        changes.dayIndex,
+        current?.dayIndex
+      );
+      if (pastErr) return { success: false, error: pastErr };
+    }
 
     const updated = await updateStep(access.ownerId, stepId, changes);
     revalidatePath('/runway');
@@ -288,6 +337,13 @@ export async function actionReorderStep(raw: {
     }
 
     const access = await requireStepAccess(userId, parsed.data.stepId, 'editor');
+    const pastErr = await guardMove(
+      userId,
+      access.ownerId,
+      parsed.data.stepId,
+      parsed.data.newDayIndex
+    );
+    if (pastErr) return { success: false, error: pastErr };
     const updated = await reorderStep(
       access.ownerId,
       parsed.data.stepId,
@@ -332,6 +388,13 @@ export async function actionQuickReorderStep(raw: {
     }
 
     const access = await requireStepAccess(userId, parsed.data.stepId, 'editor');
+    const pastErr = await guardMove(
+      userId,
+      access.ownerId,
+      parsed.data.stepId,
+      parsed.data.newDayIndex
+    );
+    if (pastErr) return { success: false, error: pastErr };
     await reorderStep(
       access.ownerId,
       parsed.data.stepId,
@@ -371,6 +434,21 @@ export async function actionRolloverSteps(raw: {
     }
 
     const access = await requireMissionAccess(userId, parsed.data.missionId, 'editor');
+
+    // Unfinished work can only roll forward onto today or later days
+    const [runway, ctx] = await Promise.all([
+      getRunwayByMission(access.ownerId, parsed.data.missionId),
+      getScheduleContext(userId),
+    ]);
+    if (runway && ctx.strict) {
+      const schedule = runwaySchedule(runway, ctx.tz);
+      if (parsed.data.moves.some((m) => dayIsInPast(schedule, m.toDay, ctx.today))) {
+        return {
+          success: false,
+          error: "You can't roll tasks onto a day that is in the past. Pick today or later.",
+        };
+      }
+    }
     const res = await rolloverSteps(access.ownerId, parsed.data.missionId, parsed.data.moves);
     revalidatePath('/runway');
     revalidatePath('/today');

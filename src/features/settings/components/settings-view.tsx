@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ConnectedApps } from '@/features/oauth/components/connected-apps';
+import { CalendarSettings } from '@/features/settings/components/calendar-settings';
 import type { ConnectedApp } from '@/server/dal/oauth';
 
 interface SettingsViewProps {
@@ -339,6 +340,12 @@ export function SettingsView({
           </form>
         </div>
       </div>
+
+      {/* Calendar & schedule */}
+      <CalendarSettings
+        initialWeekdays={initialSettings.workingWeekdays}
+        initialStrict={initialSettings.strictSchedule}
+      />
 
       {/* 4. Data Portability & Backup */}
       <div className="rounded-2xl border border-border bg-surface p-6 shadow-xl space-y-4">

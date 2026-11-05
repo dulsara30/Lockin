@@ -1,5 +1,6 @@
 'use server';
 
+import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { getUserSettings, updateUserSettings, getDecryptedGeminiKey } from '@/server/dal/settings';
 import { Mission } from '@/server/models/Mission';
@@ -28,22 +29,47 @@ export async function getSettingsAction() {
   }
 }
 
-export async function updateSettingsAction(data: {
-  theme?: 'dark' | 'light' | 'system';
-  accent?: string;
-  density?: 'compact' | 'comfortable';
-  timezone?: string;
-  weekStart?: 0 | 1 | 6;
-  workHoursPerDay?: number;
-  capacityByWeekday?: Record<string, number>;
-}) {
+// Whitelist of fields the client may change (never trust the TypeScript type at runtime)
+const updateSettingsSchema = z
+  .object({
+    theme: z.enum(['dark', 'light', 'system']),
+    accent: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
+    density: z.enum(['compact', 'comfortable']),
+    timezone: z.string().min(1).max(64),
+    weekStart: z.union([z.literal(0), z.literal(1), z.literal(6)]),
+    workHoursPerDay: z.number().int().min(1).max(24),
+    capacityByWeekday: z.record(z.number().min(0).max(24)),
+    workingWeekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7),
+    strictSchedule: z.boolean(),
+  })
+  .partial()
+  .strict();
+
+export async function updateSettingsAction(data: z.input<typeof updateSettingsSchema>) {
   const session = await auth();
   if (!session?.user?.id) {
     return { success: false, error: 'Unauthorized' };
   }
 
+  const parsed = updateSettingsSchema.safeParse(data);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message || 'Invalid settings' };
+  }
+  if (parsed.data.timezone) {
+    try {
+      new Intl.DateTimeFormat('en', { timeZone: parsed.data.timezone });
+    } catch {
+      return { success: false, error: 'Unknown timezone' };
+    }
+  }
+
   try {
-    const updated = await updateUserSettings(session.user.id, data);
+    const updated = await updateUserSettings(session.user.id, {
+      ...parsed.data,
+      ...(parsed.data.workingWeekdays
+        ? { workingWeekdays: Array.from(new Set(parsed.data.workingWeekdays)).sort() }
+        : {}),
+    });
     revalidatePath('/settings');
     return { success: true, settings: updated };
   } catch (error: unknown) {
