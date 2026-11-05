@@ -12,6 +12,10 @@ export interface ISettings extends Document {
   customStatuses: string[];
   customFields: Array<{ id: string; name: string; type: string }>;
   shortcutOverrides: Record<string, string>;
+  /** Default working weekdays for new runways: 0 = Sunday ... 6 = Saturday */
+  workingWeekdays: number[];
+  /** Strict: no past dates anywhere (create, start, shift, move tasks, replan) */
+  strictSchedule: boolean;
   encryptedGeminiKey?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -42,6 +46,8 @@ const SettingsSchema = new Schema<ISettings>(
     customStatuses: { type: [String], default: [] },
     customFields: { type: [{ id: String, name: String, type: { type: String } }], default: [] },
     shortcutOverrides: { type: Map, of: String, default: {} },
+    workingWeekdays: { type: [Number], default: [0, 1, 2, 3, 4, 5, 6] },
+    strictSchedule: { type: Boolean, default: true },
     encryptedGeminiKey: { type: String, default: null },
   },
   {

@@ -9,8 +9,8 @@ export interface IRunway extends Document {
   title: string;
   description?: string;
   dayCount: number;
-  startDate: Date;
-  deadline: Date;
+  startDate?: Date;
+  deadline?: Date;
   status: RunwayStatus;
   version: number;
   isOriginal: boolean;
@@ -18,6 +18,12 @@ export interface IRunway extends Document {
   dayStartTimes: Map<string, Date>;
   dayFailedIndices: number[];
   hoursPerDay?: number;
+  /** Calendar date (YYYY-MM-DD, user timezone) of Day 1. Absent = not scheduled yet (or legacy). */
+  startOn?: string;
+  /** 0 = Sunday ... 6 = Saturday. Absent (legacy) = every day. */
+  workingWeekdays?: number[];
+  /** Rest dates inside the plan (holidays, postponed gaps) */
+  skipDates: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -55,13 +61,12 @@ const RunwaySchema = new Schema<IRunway>(
       max: 30,
       default: 5,
     },
+    // Mirrors of startOn / end date (UTC noon). Unset while the runway is unscheduled.
     startDate: {
       type: Date,
-      default: () => new Date(),
     },
     deadline: {
       type: Date,
-      required: true,
     },
     status: {
       type: String,
@@ -97,6 +102,9 @@ const RunwaySchema = new Schema<IRunway>(
       min: 1,
       max: 24,
     },
+    startOn: { type: String },
+    workingWeekdays: { type: [Number] },
+    skipDates: { type: [String], default: [] },
   },
   {
     timestamps: true,

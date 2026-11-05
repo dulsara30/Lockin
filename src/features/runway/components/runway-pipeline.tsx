@@ -66,6 +66,8 @@ import { saveMissionAsTemplateAction } from '@/features/templates/actions';
 import { ExportMenu } from '@/features/export/components/export-menu';
 import { toast } from 'sonner';
 import { canEdit, MissionRole } from '@/lib/access';
+import { ScheduleBar } from '@/features/schedule/components/schedule-bar';
+import type { CalendarView } from '@/server/dal/schedule';
 
 export interface MissionData {
   _id: string;
@@ -74,8 +76,8 @@ export interface MissionData {
   color: string;
   priority: string;
   dayCount: number;
-  startDate: string;
-  deadline: string;
+  startDate?: string;
+  deadline?: string;
   status: string;
 }
 
@@ -101,6 +103,7 @@ interface RunwayPipelineProps {
   missionsList?: MissionData[];
   dailyCapacityMin?: number;
   role?: MissionRole;
+  calendar?: CalendarView | null;
 }
 
 function safeOrderBetween(
@@ -125,6 +128,7 @@ export function RunwayPipeline({
   missionsList = [],
   dailyCapacityMin = 240,
   role = 'owner',
+  calendar = null,
 }: RunwayPipelineProps) {
   const router = useRouter();
   const readOnly = !canEdit(role);
@@ -146,8 +150,6 @@ export function RunwayPipeline({
   const [isDeleteRunwayConfirmOpen, setIsDeleteRunwayConfirmOpen] = React.useState(false);
   const [isDeletingRunway, setIsDeletingRunway] = React.useState(false);
 
-  const [currentDayIndex, setCurrentDayIndex] = React.useState(0);
-
   const effectiveDayCount = runway?.dayCount || mission.dayCount || 5;
 
   // Synchronize initial steps
@@ -155,16 +157,18 @@ export function RunwayPipeline({
     setSteps(initialSteps);
   }, [initialSteps]);
 
-  // Compute current day index based on start date
-  React.useEffect(() => {
-    const startDateStr = runway?.startDate || mission.startDate;
-    if (startDateStr) {
-      const start = new Date(startDateStr).getTime();
-      const now = new Date().getTime();
-      const diffDays = Math.floor((now - start) / (1000 * 60 * 60 * 24));
-      setCurrentDayIndex(Math.max(0, Math.min(effectiveDayCount - 1, diffDays)));
-    }
-  }, [runway?.startDate, mission.startDate, effectiveDayCount]);
+  // Today's position comes from the working calendar (rest days and unstarted runways included)
+  const todayState = calendar?.today;
+  const todayWorkingDay = todayState?.state === 'working' ? todayState.dayIndex : -1;
+  const currentDayIndex =
+    todayState?.state === 'working'
+      ? todayState.dayIndex
+      : todayState?.state === 'rest'
+        ? (todayState.nextDayIndex ?? effectiveDayCount - 1)
+        : todayState?.state === 'ended'
+          ? effectiveDayCount - 1
+          : 0;
+  const isRunning = !!calendar && calendar.status !== 'unscheduled';
 
   // Sensors for keyboard & pointer drag
   const sensors = useSensors(
@@ -257,7 +261,7 @@ export function RunwayPipeline({
 
       if (!res.success) {
         setSteps(previousSteps); // Rollback
-        toast.error('Could not move task');
+        toast.error(res.error || 'Could not move task');
       }
     } catch {
       setSteps(previousSteps); // Rollback
@@ -510,6 +514,10 @@ export function RunwayPipeline({
         </div>
       </div>
 
+      {calendar && runway?._id && (
+        <ScheduleBar runwayId={runway._id} calendar={calendar} canEdit={!readOnly} />
+      )}
+
       {/* Top Runway Header Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-border/60">
         <div className="space-y-1">
@@ -621,7 +629,20 @@ export function RunwayPipeline({
                   dayIndex={index}
                   missionId={mission._id}
                   steps={daySteps}
-                  isToday={index === currentDayIndex}
+                  isToday={index === todayWorkingDay}
+                  date={calendar?.days[index]?.date ?? null}
+                  locked={calendar?.days[index]?.locked ?? false}
+                  scheduled={isRunning}
+                  isPast={
+                    !!calendar?.strict &&
+                    !!calendar.days[index]?.date &&
+                    calendar.days[index].date! < calendar.todayDate
+                  }
+                  canStartDay={
+                    isRunning &&
+                    !!calendar?.days[index]?.date &&
+                    calendar.days[index].date! <= calendar.todayDate
+                  }
                   dailyCapacityMin={dailyCapacityMin}
                   dayStartTime={dayStart}
                   isFailed={isDayFailed}

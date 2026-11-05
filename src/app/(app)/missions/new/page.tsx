@@ -8,6 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Target, Sparkles, ArrowRight, ArrowLeft, Route } from 'lucide-react';
+import {
+  ScheduleFields,
+  checkChoice,
+  defaultChoice,
+  toPayload,
+  useScheduleDefaults,
+} from '@/features/schedule/components/schedule-fields';
 import Link from 'next/link';
 import { toast } from 'sonner';
 
@@ -27,10 +34,10 @@ export default function NewMissionPage() {
   const [description, setDescription] = React.useState('');
   const [color, setColor] = React.useState('#7C5CFF');
   const [priority, setPriority] = React.useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
-  const [deadlineDays, setDeadlineDays] = React.useState(14);
+  const scheduleDefaults = useScheduleDefaults();
+  const [schedule, setSchedule] = React.useState(() => defaultChoice(14));
   const [tags, setTags] = React.useState('');
   const [createInitialRunway, setCreateInitialRunway] = React.useState(false);
-  const [runwayDays, setRunwayDays] = React.useState(5);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -40,9 +47,13 @@ export default function NewMissionPage() {
       return;
     }
 
+    const checked = checkChoice(schedule, scheduleDefaults);
+    if (!checked.ok) {
+      toast.error(checked.errors[0]);
+      return;
+    }
+
     setIsSubmitting(true);
-    const startDate = new Date();
-    const deadline = new Date(startDate.getTime() + deadlineDays * 24 * 60 * 60 * 1000);
 
     const res = await actionCreateMission({
       title: title.trim(),
@@ -55,9 +66,7 @@ export default function NewMissionPage() {
             .map((t) => t.trim())
             .filter(Boolean)
         : [],
-      dayCount: Number(deadlineDays),
-      startDate,
-      deadline,
+      ...toPayload(schedule),
     });
 
     if (res.success && res.data) {
@@ -67,7 +76,7 @@ export default function NewMissionPage() {
         const runwayRes = await actionCreateRunway({
           missionId,
           title: `${title.trim()} Main Runway`,
-          dayCount: Number(runwayDays),
+          ...toPayload(schedule),
         });
 
         setIsSubmitting(false);
@@ -131,24 +140,9 @@ export default function NewMissionPage() {
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="days">Mission Target Timeline (days)</Label>
-            <Input
-              id="days"
-              type="number"
-              min={1}
-              max={30}
-              placeholder="e.g. 14"
-              value={deadlineDays}
-              onChange={(e) => setDeadlineDays(Math.min(30, Math.max(1, Number(e.target.value))))}
-              className="font-mono text-sm"
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Ends in {deadlineDays} {deadlineDays === 1 ? 'day' : 'days'} (max 30).
-            </p>
-          </div>
+        <ScheduleFields value={schedule} onChange={setSchedule} defaults={scheduleDefaults} />
 
+        <div className="grid grid-cols-1 gap-4">
           <div className="space-y-2">
             <Label>Priority</Label>
             <div className="grid grid-cols-4 gap-1.5">
@@ -217,22 +211,9 @@ export default function NewMissionPage() {
           </label>
 
           {createInitialRunway && (
-            <div className="pt-2 border-t border-border/60 pl-6">
-              <div className="space-y-1.5 max-w-xs">
-                <Label htmlFor="rDays" className="text-xs text-muted-foreground">
-                  Runway Length (Days)
-                </Label>
-                <Input
-                  id="rDays"
-                  type="number"
-                  min={1}
-                  max={30}
-                  value={runwayDays}
-                  onChange={(e) => setRunwayDays(Math.max(1, Math.min(30, Number(e.target.value))))}
-                  className="font-mono text-xs w-28"
-                />
-              </div>
-            </div>
+            <p className="pt-2 border-t border-border/60 pl-6 text-[11px] text-muted-foreground">
+              The runway uses the schedule above (same duration, dates and working days).
+            </p>
           )}
         </div>
 

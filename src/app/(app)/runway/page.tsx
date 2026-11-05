@@ -5,7 +5,8 @@ import { getMissionById } from '@/server/dal/missions';
 import { getMissionAccess } from '@/server/dal/access';
 import { canEdit } from '@/lib/access';
 import { getRunwayByMission, getRunwaysByMission, getRunwayById } from '@/server/dal/runways';
-import { getStepsByMission } from '@/server/dal/steps';
+import { getStepsForRunwayView } from '@/server/dal/steps';
+import { getRunwayCalendar, getScheduleContext } from '@/server/dal/schedule';
 import { getUserSettings } from '@/server/dal/settings';
 import { RunwayPipeline } from '@/features/runway/components/runway-pipeline';
 import { RunwayMissionSelector } from '@/features/runway/components/runway-mission-selector';
@@ -108,7 +109,12 @@ export default async function RunwayPage({ searchParams }: RunwayPageProps) {
   }
 
   // Case 4: Runway exists -> Load its steps and render the pipeline
-  const steps = await getStepsByMission(ownerId, activeMission._id.toString());
+  const [steps, calendar] = await Promise.all([
+    getStepsForRunwayView(ownerId, activeMission._id.toString(), runway._id.toString()),
+    getScheduleContext(userId).then((ctx) =>
+      getRunwayCalendar(ownerId, runway._id.toString(), ctx)
+    ),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -120,6 +126,7 @@ export default async function RunwayPage({ searchParams }: RunwayPageProps) {
         missionsList={JSON.parse(JSON.stringify(missions))}
         dailyCapacityMin={runway.hoursPerDay ? runway.hoursPerDay * 60 : dailyCapacityMin}
         role={role}
+        calendar={calendar ? JSON.parse(JSON.stringify(calendar)) : null}
       />
     </div>
   );

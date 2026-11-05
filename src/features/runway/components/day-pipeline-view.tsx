@@ -34,6 +34,8 @@ import {
 import { StepData, StepDrawer } from '@/features/steps/components/step-drawer';
 import { canEdit, MissionRole } from '@/lib/access';
 import { plainPreview } from '@/lib/notes';
+import { formatDayLabel } from '@/lib/calendar';
+import type { CalendarView } from '@/server/dal/schedule';
 import { ExportMenu } from '@/features/export/components/export-menu';
 import { ConfirmStartDayModal } from './confirm-start-day-modal';
 import { ReplanModal } from './replan-modal';
@@ -72,6 +74,7 @@ interface DayPipelineViewProps {
   initialSteps: StepData[];
   dailyCapacityMin: number;
   role?: MissionRole;
+  calendar?: CalendarView | null;
 }
 
 const LANES = [
@@ -301,6 +304,7 @@ export function DayPipelineView({
   initialSteps,
   dailyCapacityMin,
   role = 'owner',
+  calendar = null,
 }: DayPipelineViewProps) {
   const router = useRouter();
   const readOnly = !canEdit(role);
@@ -471,6 +475,16 @@ export function DayPipelineView({
     }
   };
 
+  // The 24h day clock needs a started runway and cannot start before the day's own date
+  const dayDate = calendar?.days[dayIndex]?.date ?? null;
+  const dayStartBlock = !calendar
+    ? null
+    : calendar.status === 'unscheduled'
+      ? 'Start the runway first (no dates yet)'
+      : dayDate && dayDate > calendar.todayDate
+        ? `Starts ${formatDayLabel(dayDate)}`
+        : null;
+
   const completedSteps = steps.filter((s) => s.status === 'done');
   const allCompleted = steps.length > 0 && completedSteps.length === steps.length;
   const isDraggingDay = (isOverdue || isFailed) && !allCompleted;
@@ -500,6 +514,11 @@ export function DayPipelineView({
             />
             <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
               Day {dayIndex + 1} Pipeline Focus
+              {dayDate && (
+                <span className="ml-2 text-sm font-mono font-medium text-muted-foreground">
+                  {formatDayLabel(dayDate)}
+                </span>
+              )}
             </h1>
             {allCompleted && (
               <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-success/20 text-success border border-success/30 flex items-center gap-1">
@@ -533,7 +552,11 @@ export function DayPipelineView({
 
         {/* 24-Hour Timer Status / Start Day Trigger */}
         <div className="flex items-center gap-3">
-          {!dayStartTime && readOnly ? null : !dayStartTime ? (
+          {!dayStartTime && dayStartBlock ? (
+            <span className="rounded-xl border border-border bg-surface px-3 py-2 text-xs text-muted-foreground">
+              {dayStartBlock}
+            </span>
+          ) : !dayStartTime && readOnly ? null : !dayStartTime ? (
             <Button
               onClick={() => setIsConfirmStartOpen(true)}
               className="bg-primary hover:bg-primary-hover text-white text-xs gap-1.5 shadow-md shadow-primary/20"

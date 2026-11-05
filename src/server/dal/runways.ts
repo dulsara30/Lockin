@@ -3,14 +3,19 @@ import { Runway, IRunway, RunwayStatus } from '@/server/models/Runway';
 import { Step } from '@/server/models/Step';
 import { Activity } from '@/server/models/Activity';
 import { Mission } from '@/server/models/Mission';
+import { ymdToDate } from '@/lib/calendar';
 
 export interface CreateRunwayDTO {
   missionId: string;
   title: string;
   description?: string;
   dayCount: number;
-  startDate?: Date;
-  deadline: Date;
+  /** Day 1 date (YYYY-MM-DD). Omit for an unscheduled runway (duration only). */
+  startOn?: string | null;
+  /** Derived end date (YYYY-MM-DD), mirrored for legacy readers */
+  endOn?: string | null;
+  workingWeekdays?: number[];
+  skipDates?: string[];
   version?: number;
   isOriginal?: boolean;
   hoursPerDay?: number;
@@ -110,8 +115,11 @@ export async function createRunway(userId: string, data: CreateRunwayDTO) {
     );
   }
 
+  const { startOn, endOn, ...rest } = data;
   const runway = await Runway.create({
-    ...data,
+    ...rest,
+    ...(startOn ? { startOn, startDate: ymdToDate(startOn) } : {}),
+    ...(startOn && endOn ? { deadline: ymdToDate(endOn) } : {}),
     userId,
     status: 'active',
     version: data.version ?? nextVersion,
@@ -122,7 +130,15 @@ export async function createRunway(userId: string, data: CreateRunwayDTO) {
   // The new runway is the active one: keep the mission timeline in sync with it
   await Mission.updateOne(
     { _id: data.missionId, userId },
-    { $set: { dayCount: data.dayCount, deadline: data.deadline } }
+    startOn && endOn
+      ? {
+          $set: {
+            dayCount: data.dayCount,
+            startDate: ymdToDate(startOn),
+            deadline: ymdToDate(endOn),
+          },
+        }
+      : { $set: { dayCount: data.dayCount }, $unset: { startDate: '', deadline: '' } }
   );
 
   await Activity.create({
@@ -167,6 +183,20 @@ export async function deleteRunway(userId: string, runwayId: string) {
   return deleted;
 }
 
+/** Mirrors a runway's dayCount and dates onto its mission (unsets dates while unscheduled). */
+async function mirrorMission(
+  userId: string,
+  missionId: unknown,
+  r: { dayCount: number; startDate?: Date | null; deadline?: Date | null }
+) {
+  await Mission.updateOne(
+    { _id: missionId, userId },
+    r.startDate && r.deadline
+      ? { $set: { dayCount: r.dayCount, startDate: r.startDate, deadline: r.deadline } }
+      : { $set: { dayCount: r.dayCount }, $unset: { startDate: '', deadline: '' } }
+  );
+}
+
 /** The active runway is the source of truth: align the mission's dayCount and deadline to it. */
 export async function syncMissionToRunway(userId: string, missionId: string) {
   if (!userId) throw new Error('Security Error: userId is required');
@@ -182,10 +212,7 @@ export async function syncMissionToRunway(userId: string, missionId: string) {
     .lean()
     .exec();
   if (!active) return null;
-  await Mission.updateOne(
-    { _id: missionId, userId },
-    { $set: { dayCount: active.dayCount, deadline: active.deadline } }
-  );
+  await mirrorMission(userId, missionId, active);
   return { dayCount: active.dayCount, deadline: active.deadline };
 }
 
@@ -238,12 +265,7 @@ export async function switchActiveRunway(userId: string, missionId: string, runw
     .lean()
     .exec();
 
-  if (updated) {
-    await Mission.updateOne(
-      { _id: missionId, userId },
-      { $set: { dayCount: updated.dayCount, deadline: updated.deadline } }
-    );
-  }
+  if (updated) await mirrorMission(userId, missionId, updated);
 
   return updated;
 }

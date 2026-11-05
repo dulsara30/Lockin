@@ -290,3 +290,44 @@ describe('Lockin tool catalog invariants', () => {
     }
   });
 });
+
+describe('scheduling tools', () => {
+  const names = tools.map((t) => t.name);
+
+  it('exposes the calendar and schedule tools', () => {
+    for (const n of [
+      'get_calendar',
+      'start_runway',
+      'shift_runway',
+      'postpone_from_day',
+      'set_working_days',
+      'skip_dates',
+      'update_settings',
+    ]) {
+      expect(names).toContain(n);
+    }
+  });
+
+  it('schedule changes support a dry run preview', () => {
+    for (const n of [
+      'start_runway',
+      'shift_runway',
+      'postpone_from_day',
+      'set_working_days',
+      'skip_dates',
+    ]) {
+      const t = tools.find((x) => x.name === n)!;
+      expect(Object.keys(t.input.shape)).toContain('dryRun');
+      expect(t.tier).toBe('write');
+    }
+  });
+
+  it('cannot turn strict mode off or change the timeline through other tools', () => {
+    const settings = tools.find((t) => t.name === 'update_settings')!;
+    expect(Object.keys(settings.input.shape)).not.toContain('strictSchedule');
+    const mission = tools.find((t) => t.name === 'update_mission')!;
+    for (const k of ['dayCount', 'startDate', 'deadline', 'startOn']) {
+      expect(Object.keys(mission.input.shape)).not.toContain(k);
+    }
+  });
+});

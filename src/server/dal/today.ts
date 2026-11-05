@@ -5,7 +5,8 @@ import { Activity } from '@/server/models/Activity';
 import { Runway } from '@/server/models/Runway';
 import { MissionMember } from '@/server/models/MissionMember';
 import { getUserSettings } from '@/server/dal/settings';
-import { dayDate, dayIndexForDate } from '@/lib/dates';
+import { DayState, dateForDay, dayStateFor, todayInTz } from '@/lib/calendar';
+import { runwaySchedule } from '@/server/dal/schedule';
 
 export async function getTodayDashboardData(userId: string) {
   if (!userId) throw new Error('Security Error: userId is required');
@@ -33,8 +34,8 @@ export async function getTodayDashboardData(userId: string) {
     };
   }
 
-  const now = new Date();
   const { timezone } = await getUserSettings(userId);
+  const today = todayInTz(timezone);
   const missionMap = new Map(activeMissions.map((m) => [m._id.toString(), m]));
 
   // "Today" is derived from each mission's ACTIVE runway (its own start date and length),
@@ -47,26 +48,34 @@ export async function getTodayDashboardData(userId: string) {
     .sort({ version: -1 })
     .lean();
 
+  // Only runways that are running AND on a working date contribute steps today. Unscheduled,
+  // upcoming, ended and rest-day cases are reported in the missions summary instead.
   const missionDays = activeMissions.map((m) => {
     const mine = runways.filter((r) => r.missionId.toString() === m._id.toString());
     const runway = mine.find((r) => r.isActive) || mine[0] || null;
-    const start = runway?.startDate || m.startDate;
-    const dayCount = runway?.dayCount || m.dayCount;
-    const dayIndex = Math.min(dayCount - 1, Math.max(0, dayIndexForDate(start, now, timezone)));
-    return { mission: m, runway, dayIndex, date: dayDate(start, dayIndex, timezone) };
+    const schedule = runway ? runwaySchedule(runway, timezone) : null;
+    const state: DayState =
+      runway && schedule ? dayStateFor(schedule, runway.dayCount, today) : { state: 'unscheduled' };
+    const dayIndex = state.state === 'working' ? state.dayIndex : null;
+    const date = schedule && dayIndex !== null ? dateForDay(schedule, dayIndex) : null;
+    return { mission: m, runway, state, dayIndex, date };
   });
 
   const stepResults = await Promise.all(
     missionDays.map(({ mission, runway, dayIndex }) =>
-      Step.find({
-        userId: mission.userId,
-        missionId: mission._id,
-        dayIndex,
-        // Steps of other runway versions are not part of today's plan (legacy steps have none)
-        ...(runway ? { $or: [{ runwayId: runway._id }, { runwayId: { $exists: false } }] } : {}),
-      })
-        .sort({ order: 1 })
-        .lean()
+      dayIndex === null
+        ? Promise.resolve([])
+        : Step.find({
+            userId: mission.userId,
+            missionId: mission._id,
+            dayIndex,
+            // Steps of other runway versions are not part of today's plan (legacy steps have none)
+            ...(runway
+              ? { $or: [{ runwayId: runway._id }, { runwayId: { $exists: false } }] }
+              : {}),
+          })
+            .sort({ order: 1 })
+            .lean()
     )
   );
   const rawSteps = stepResults.flat();
@@ -76,6 +85,7 @@ export async function getTodayDashboardData(userId: string) {
     runwayId: d.runway?._id.toString() ?? null,
     runwayVersion: d.runway?.version ?? null,
     role: roleByMission.get(d.mission._id.toString()) ?? 'owner',
+    schedule: d.state,
     dayIndex: d.dayIndex,
     date: d.date,
     stepCount: stepResults[i].length,

@@ -29,6 +29,12 @@
 - Per-day capacity meters showing planned hours vs daily work limits.
 - Instant modal and inline step creation per day lane.
 
+### 📅 Scheduling & Working Days
+
+- Create a mission or runway with just a **duration**, or with dates, and start it when you are ready. Press **Start runway** and that day becomes Day 1.
+- Choose which weekdays you work (all seven by default, configurable in Settings and per runway), skip single dates, **postpone from any day** or shift the whole runway forward. Tasks stay on their day numbers; only the dates move.
+- **Strict schedule** (on by default) rejects past dates everywhere. A re-plan creates a new version that only uses days still ahead.
+
 ### 🔀 Versioned Runways & AI Re-planning
 
 - **Preserved History:** The original runway (v1) is permanently archived and never overwritten.

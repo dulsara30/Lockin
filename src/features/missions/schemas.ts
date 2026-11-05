@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { scheduleFields } from '@/features/schedule/schemas';
 
 export const createMissionSchema = z.object({
   title: z.string().trim().min(1, 'Title is required').max(120),
@@ -9,18 +10,22 @@ export const createMissionSchema = z.object({
     .default('#7C5CFF'),
   priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
   tags: z.array(z.string().trim()).default([]),
-  startDate: z
-    .string()
-    .or(z.date())
-    .transform((val) => new Date(val)),
-  deadline: z
-    .string()
-    .or(z.date())
-    .transform((val) => new Date(val)),
-  dayCount: z.number().int().min(1).max(30).default(5),
+  // Duration in working days, or a start and an end date. Without dates the mission is
+  // unscheduled until its runway is started.
+  dayCount: z.number().int().min(1).max(30).optional(),
+  ...scheduleFields,
 });
 
-export const updateMissionSchema = createMissionSchema.partial().extend({
+// The timeline (duration, dates, working days) is changed on the runway, never here
+export const updateMissionSchema = z.object({
+  title: z.string().trim().min(1).max(120).optional(),
+  description: z.string().trim().max(2000).optional(),
+  color: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/, 'Must be a valid hex color')
+    .optional(),
+  priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+  tags: z.array(z.string().trim()).optional(),
   status: z.enum(['active', 'completed', 'archived']).optional(),
   archived: z.boolean().optional(),
 });

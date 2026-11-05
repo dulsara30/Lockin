@@ -15,9 +15,17 @@ import {
 import { brainDumpAiInputSchema, templateImportSchema, confirmPlanSchema } from './schemas';
 import { createMission, getMissionById, updateMission } from '@/server/dal/missions';
 import { createRunway, getRunwayByMission, getRunwaysByMission } from '@/server/dal/runways';
-import { createStep, getStepsByMission } from '@/server/dal/steps';
+import { createStep, getStepsByRunway } from '@/server/dal/steps';
 import { getTodayDashboardData } from '@/server/dal/today';
 import { requireMissionAccess } from '@/server/dal/access';
+import {
+  remainingWorkingDays,
+  replanSchedule,
+  resolveNewSchedule,
+  scheduleDates,
+  scheduleError,
+} from '@/server/services/schedule';
+import { getScheduleContext } from '@/server/dal/schedule';
 import { planSchema } from '@/lib/templates/parser';
 import { generateKeyBetween } from 'fractional-indexing';
 import { revalidatePath } from 'next/cache';
@@ -127,9 +135,14 @@ export async function confirmAndSavePlanAction(planData: unknown) {
   let userId = actorId;
 
   try {
-    const startDate = new Date();
-    const deadline = new Date(startDate);
-    deadline.setDate(deadline.getDate() + dayCount);
+    // Duration is the plan length; dates are optional (otherwise start the runway later)
+    const schedule = await resolveNewSchedule(actorId, {
+      dayCount,
+      startOn: parsed.data.startOn,
+      workingWeekdays: parsed.data.workingWeekdays,
+      skipDates: parsed.data.skipDates,
+    });
+    if (!schedule.ok) return { success: false, error: scheduleError(schedule.errors) };
 
     let activeMissionId: string;
 
@@ -149,8 +162,7 @@ export async function confirmAndSavePlanAction(planData: unknown) {
         color: color || '#7C5CFF',
         priority,
         tags: tags || [],
-        startDate,
-        deadline,
+        ...scheduleDates(schedule.value),
         dayCount,
       });
       activeMissionId = newMission._id.toString();
@@ -162,8 +174,10 @@ export async function confirmAndSavePlanAction(planData: unknown) {
       title: runwayTitle || `${title} Runway`,
       description: description || '',
       dayCount,
-      startDate,
-      deadline,
+      startOn: schedule.value.startOn,
+      endOn: schedule.value.endOn,
+      workingWeekdays: schedule.value.workingWeekdays,
+      skipDates: schedule.value.skipDates,
       hoursPerDay: parsed.data.hoursPerDay,
     });
     const runwayId = runway._id.toString();
@@ -217,11 +231,12 @@ export async function replanMissionAction(missionId: string, hoursPerDay = 4) {
   try {
     const access = await requireMissionAccess(userId, missionId, 'editor');
     const ownerId = access.ownerId;
-    const [steps, mission, activeRunway] = await Promise.all([
-      getStepsByMission(ownerId, missionId),
+    const [mission, activeRunway] = await Promise.all([
       getMissionById(ownerId, missionId),
       getRunwayByMission(ownerId, missionId),
     ]);
+    // Only the ACTIVE runway's unfinished work is re-planned (older versions are history)
+    const steps = activeRunway ? await getStepsByRunway(ownerId, activeRunway._id.toString()) : [];
 
     const incompleteSteps = steps.filter((s) => s.status !== 'done' && s.status !== 'skipped');
 
@@ -229,12 +244,10 @@ export async function replanMissionAction(missionId: string, hoursPerDay = 4) {
       return { success: false, error: 'No incomplete steps to re-plan.' };
     }
 
-    // Feasibility analysis: can remaining work fit in remaining days?
-    const deadline =
-      activeRunway?.deadline || mission?.deadline || new Date(Date.now() + 7 * 86400000);
-    const now = new Date();
-    const msLeft = new Date(deadline).getTime() - now.getTime();
-    const daysLeft = Math.max(1, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
+    // Feasibility: can the remaining work fit in the working days still ahead (past days
+    // never count)?
+    const ctx = await getScheduleContext(userId);
+    const daysLeft = Math.max(1, remainingWorkingDays(activeRunway, ctx, mission?.dayCount ?? 5));
 
     const totalRemainingMin = incompleteSteps.reduce((acc, s) => acc + s.estimateMin, 0);
     const availableCapacityMin = daysLeft * hoursPerDay * 60;
@@ -299,8 +312,10 @@ export async function applyReplanAction(missionId: string, rawPlan: ParsedPlan) 
     const nextVersion =
       existingRunways.length > 0 ? Math.max(...existingRunways.map((r) => r.version || 1)) + 1 : 2;
 
-    const startDate = new Date();
-    const deadline = new Date(startDate.getTime() + plan.dayCount * 24 * 60 * 60 * 1000);
+    // The new version starts today (or its original future start): never on a past day
+    const previous = await getRunwayByMission(userId, missionId);
+    const schedule = await replanSchedule(session.user.id, previous, plan.dayCount);
+    if (!schedule.ok) return { success: false, error: scheduleError(schedule.errors) };
 
     // Create NEW Runway version under this mission (preserving previous runway versions)
     const newRunway = await createRunway(userId, {
@@ -308,8 +323,10 @@ export async function applyReplanAction(missionId: string, rawPlan: ParsedPlan) 
       title: `${plan.title || 'Pipeline'} (v${nextVersion})`,
       description: plan.description || 'AI Re-balanced runway',
       dayCount: plan.dayCount,
-      startDate,
-      deadline,
+      startOn: schedule.value.startOn,
+      endOn: schedule.value.endOn,
+      workingWeekdays: schedule.value.workingWeekdays,
+      skipDates: schedule.value.skipDates,
       version: nextVersion,
       isOriginal: false,
       hoursPerDay: plan.hoursPerDay,

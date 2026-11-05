@@ -13,6 +13,8 @@ export interface UserSettingsResponse {
   customStatuses: string[];
   customFields: Array<{ id: string; name: string; type: string }>;
   shortcutOverrides: Record<string, string>;
+  workingWeekdays: number[];
+  strictSchedule: boolean;
   hasCustomGeminiKey: boolean;
 }
 
@@ -48,6 +50,10 @@ export async function getUserSettings(userId: string): Promise<UserSettingsRespo
     customStatuses: settings.customStatuses || [],
     customFields: settings.customFields || [],
     shortcutOverrides: shortcutsObj,
+    workingWeekdays: settings.workingWeekdays?.length
+      ? settings.workingWeekdays
+      : [0, 1, 2, 3, 4, 5, 6],
+    strictSchedule: settings.strictSchedule !== false,
     hasCustomGeminiKey: Boolean(settings.encryptedGeminiKey),
   };
 }

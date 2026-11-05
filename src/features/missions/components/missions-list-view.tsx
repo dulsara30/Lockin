@@ -16,6 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { actionGetMissions } from '@/features/missions/actions';
 import { toast } from 'sonner';
+import { formatDayLabel } from '@/lib/calendar';
 
 export interface MissionListItem {
   _id: string;
@@ -24,7 +25,7 @@ export interface MissionListItem {
   category?: string;
   color?: string;
   priority: string;
-  deadline: string | Date;
+  deadline?: string | Date | null;
   status: string;
   hasRunway?: boolean;
   stepCount?: number;
@@ -141,7 +142,9 @@ export function MissionsListView() {
             const completedCount = mission.completedStepCount || 0;
             const totalCount = mission.stepCount || 0;
             const percent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-            const deadlineFormatted = new Date(mission.deadline).toISOString().split('T')[0];
+            const deadlineFormatted = mission.deadline
+              ? `Ends ${formatDayLabel(new Date(mission.deadline).toISOString().slice(0, 10))}`
+              : 'Not scheduled';
 
             return (
               <Link

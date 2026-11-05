@@ -48,6 +48,26 @@ export async function getStepsByMission(userId: string, missionId: string, runwa
   return await Step.find(filter).sort({ dayIndex: 1, order: 1 }).lean().exec();
 }
 
+/**
+ * Steps shown for one runway version: its own steps plus legacy steps that never had a
+ * runway. Other versions' steps (history) are excluded.
+ */
+export async function getStepsForRunwayView(userId: string, missionId: string, runwayId: string) {
+  if (!userId) throw new Error('Security Error: userId is required');
+  if (!missionId) throw new Error('missionId is required');
+  if (!runwayId) throw new Error('runwayId is required');
+  await connectDB();
+
+  return await Step.find({
+    userId,
+    missionId,
+    $or: [{ runwayId }, { runwayId: { $exists: false } }],
+  })
+    .sort({ dayIndex: 1, order: 1 })
+    .lean()
+    .exec();
+}
+
 export async function getStepsByRunway(userId: string, runwayId: string) {
   if (!userId) throw new Error('Security Error: userId is required');
   if (!runwayId) throw new Error('runwayId is required');

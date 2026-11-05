@@ -30,6 +30,14 @@ import {
 } from '@/features/missions/actions';
 import { actionCreateRunway, actionDeleteRunway } from '@/features/runway/actions';
 import { toast } from 'sonner';
+import {
+  ScheduleFields,
+  checkChoice,
+  defaultChoice,
+  toPayload,
+  useScheduleDefaults,
+} from '@/features/schedule/components/schedule-fields';
+import { formatDayLabel } from '@/lib/calendar';
 import { ShareDialog, MemberItem } from '@/features/sharing/components/share-dialog';
 import { canEdit, MissionRole } from '@/lib/access';
 
@@ -51,7 +59,8 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
   const [isLoading, setIsLoading] = React.useState(true);
   const [showAddRunway, setShowAddRunway] = React.useState(false);
   const [newRunwayTitle, setNewRunwayTitle] = React.useState('');
-  const [newRunwayDays, setNewRunwayDays] = React.useState(5);
+  const scheduleDefaults = useScheduleDefaults();
+  const [newRunwaySchedule, setNewRunwaySchedule] = React.useState(() => defaultChoice(5));
   const [isCreatingRunway, setIsCreatingRunway] = React.useState(false);
 
   // Edit Mission State
@@ -59,7 +68,6 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
   const [editTitle, setEditTitle] = React.useState('');
   const [editDescription, setEditDescription] = React.useState('');
   const [editPriority, setEditPriority] = React.useState<'low' | 'medium' | 'high'>('medium');
-  const [editDeadline, setEditDeadline] = React.useState('');
   const [editColor, setEditColor] = React.useState('#7C5CFF');
   const [isSavingMission, setIsSavingMission] = React.useState(false);
 
@@ -73,9 +81,6 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
       setEditDescription(res.data.mission.description || '');
       setEditPriority(res.data.mission.priority || 'medium');
       setEditColor(res.data.mission.color || '#7C5CFF');
-      if (res.data.mission.deadline) {
-        setEditDeadline(new Date(res.data.mission.deadline).toISOString().split('T')[0]);
-      }
     } else {
       toast.error(res.error || 'Failed to load mission');
     }
@@ -113,7 +118,6 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
       description: editDescription.trim(),
       priority: editPriority,
       color: editColor,
-      deadline: editDeadline ? new Date(editDeadline) : undefined,
     });
     setIsSavingMission(false);
 
@@ -133,11 +137,17 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
       return;
     }
 
+    const checked = checkChoice(newRunwaySchedule, scheduleDefaults);
+    if (!checked.ok) {
+      toast.error(checked.errors[0]);
+      return;
+    }
+
     setIsCreatingRunway(true);
     const res = await actionCreateRunway({
       missionId,
       title: newRunwayTitle.trim(),
-      dayCount: Number(newRunwayDays),
+      ...toPayload(newRunwaySchedule),
     });
     setIsCreatingRunway(false);
 
@@ -327,13 +337,13 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs">Deadline</Label>
-              <Input
-                type="date"
-                value={editDeadline}
-                onChange={(e) => setEditDeadline(e.target.value)}
-                className="text-xs font-mono"
-              />
+              <Label className="text-xs">Timeline</Label>
+              <p className="rounded-xl border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
+                {mission.deadline
+                  ? `Ends ${formatDayLabel(new Date(mission.deadline).toISOString().slice(0, 10))}. `
+                  : 'Not scheduled yet. '}
+                Dates and working days are managed on the runway (Adjust schedule).
+              </p>
             </div>
           </div>
 
@@ -476,7 +486,9 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
               suppressHydrationWarning
               className="text-[10px] text-muted-foreground mt-0.5 block"
             >
-              Due {new Date(mission.deadline).toISOString().split('T')[0]}
+              {mission.deadline
+                ? `Ends ${formatDayLabel(new Date(mission.deadline).toISOString().slice(0, 10))}`
+                : 'Not scheduled yet'}
             </span>
           </div>
         </div>
@@ -570,24 +582,13 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
                   className="text-xs"
                 />
               </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="rDays" className="text-xs">
-                  Duration (Days)
-                </Label>
-                <Input
-                  id="rDays"
-                  type="number"
-                  min={1}
-                  max={30}
-                  value={newRunwayDays}
-                  onChange={(e) =>
-                    setNewRunwayDays(Math.max(1, Math.min(30, Number(e.target.value))))
-                  }
-                  className="font-mono text-xs"
-                />
-              </div>
             </div>
+
+            <ScheduleFields
+              value={newRunwaySchedule}
+              onChange={setNewRunwaySchedule}
+              defaults={scheduleDefaults}
+            />
 
             <div className="flex justify-end gap-2 pt-2 border-t border-border">
               <Button
@@ -664,8 +665,13 @@ export function MissionDetailView({ missionId }: MissionDetailViewProps) {
                   <div className="space-y-3">
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <span className="text-[10px] font-mono uppercase tracking-wider text-primary font-semibold">
-                          Active Pipeline
+                        <span
+                          className={`text-[10px] font-mono uppercase tracking-wider font-semibold ${
+                            runway.isActive ? 'text-primary' : 'text-muted-foreground'
+                          }`}
+                        >
+                          {runway.isActive ? 'Active' : 'History'} · v{runway.version || 1}
+                          {runway.isOriginal ? ' (original)' : ' (re-plan)'}
                         </span>
                         <h3 className="text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mt-0.5">
                           {runway.title}
